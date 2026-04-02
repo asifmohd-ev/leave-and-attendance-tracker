@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  /* Minimal Modern Light Theme */
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  
+  --card-bg: #FFFFFF;
+  --card-border: #E2E8F0; /* Slate-200 */
+  
+  --accent: #0D9488; /* Company Teal-600 */
+  --accent-foreground: #FFFFFF;
+  
+  --muted: #64748B;
+  --muted-foreground: #94A3B8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-card: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1; /* Slate-300 */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8; /* Slate-400 */
+}
