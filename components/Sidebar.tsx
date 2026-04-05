@@ -3,10 +3,18 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CalendarCheck, CalendarOff, CalendarDays, FileDown } from "lucide-react";
+import { LayoutDashboard, Users, CalendarCheck, CalendarOff, CalendarDays, FileDown, LogOut, ShieldAlert } from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+import { useStore } from "@/lib/store";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useStore();
+
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
 
   const links = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -15,6 +23,7 @@ export function Sidebar() {
     { name: "Calendar", href: "/calendar", icon: CalendarDays },
     { name: "Employees", href: "/employees", icon: Users },
     { name: "Export", href: "/export", icon: FileDown },
+    { name: "Settings", href: "/users", icon: ShieldAlert },
   ];
 
   return (
@@ -52,6 +61,27 @@ export function Sidebar() {
           );
         })}
       </nav>
+      
+      {user && (
+        <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">
+              {user.email?.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col truncate">
+              <span className="text-xs font-bold text-slate-700 truncate">{user.email?.split('@')[0]}</span>
+              <span className="text-[10px] font-medium text-slate-400 truncate">{user.email}</span>
+            </div>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+            title="Log out"
+          >
+            <LogOut size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
       
       <div className="p-6 border-t border-slate-50 text-[10px] text-slate-400 font-medium text-center tracking-tight">
         Enterprise Workspace v5.0

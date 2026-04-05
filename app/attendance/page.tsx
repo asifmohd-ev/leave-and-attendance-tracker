@@ -39,6 +39,10 @@ export default function AttendancePage() {
     markAttendance(employeeId, dateStr, type, to12Hour(val24h));
   };
 
+  const handleUncheck = (employeeId: string, type: 'checkIn' | 'checkOut') => {
+    markAttendance(employeeId, dateStr, type, "");
+  };
+
   const nextDay = () => {
     const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d);
   };
@@ -77,10 +81,10 @@ export default function AttendancePage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200">
-                  <th className="px-8 py-5">Employee</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5">Check In</th>
-                  <th className="px-8 py-5">Check Out</th>
+                  <th className="px-4 py-4 sm:px-8 sm:py-5">Employee</th>
+                  <th className="px-4 py-4 sm:px-8 sm:py-5 hidden sm:table-cell">Status</th>
+                  <th className="px-4 py-4 sm:px-8 sm:py-5">Check In</th>
+                  <th className="px-4 py-4 sm:px-8 sm:py-5">Check Out</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -98,16 +102,16 @@ export default function AttendancePage() {
                   
                   return (
                     <tr key={emp.id} className={`transition-all duration-200 ${currentLeave ? 'bg-rose-50/30' : 'hover:bg-slate-50 group'}`}>
-                      <td className="px-8 py-6">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-11 h-11 border-2 transition-colors flex items-center justify-center font-bold text-sm flex-shrink-0 rounded-full overflow-hidden ${currentLeave ? 'bg-rose-100 border-white text-rose-600 shadow-sm' : 'bg-slate-100 border-white text-slate-500'}`}>
+                      <td className="px-4 py-4 sm:px-8 sm:py-6">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                          <div className={`w-9 h-9 sm:w-11 sm:h-11 border-2 transition-colors flex items-center justify-center font-bold text-xs sm:text-sm flex-shrink-0 rounded-full overflow-hidden ${currentLeave ? 'bg-rose-100 border-white text-rose-600 shadow-sm' : 'bg-slate-100 border-white text-slate-500'}`}>
                             {emp.photoUrl ? <img src={emp.photoUrl} alt="" className="w-full h-full object-cover"/> : emp.name.charAt(0)}
                           </div>
-                          <span className={`font-semibold text-sm tracking-tight ${currentLeave ? 'text-rose-700' : 'text-slate-700'}`}>{emp.name}</span>
+                          <span className={`font-semibold text-xs sm:text-sm tracking-tight ${currentLeave ? 'text-rose-700' : 'text-slate-700'}`}>{emp.name}</span>
                         </div>
                       </td>
                       
-                      <td className="px-8 py-6">
+                      <td className="px-4 py-4 sm:px-8 sm:py-6 hidden sm:table-cell">
                         {currentLeave ? (
                           <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 text-[10px] font-bold uppercase tracking-wider rounded-lg">
                             {currentLeave.type === 'Annual' ? <Palmtree size={12} strokeWidth={3}/> : <ShieldAlert size={12} strokeWidth={3}/>} 
@@ -134,12 +138,22 @@ export default function AttendancePage() {
                             {record?.checkIn ? (
                               <div className="flex items-center gap-4">
                                 <span className="font-bold text-lg text-slate-900 border-b-2 border-teal-200 pb-0.5 tabular-nums">{record.checkIn}</span>
-                                <input 
-                                  type="time"
-                                  className="text-[11px] font-bold text-slate-400 outline-none bg-slate-50 border border-slate-200 px-2 py-1 rounded-md focus:border-teal-400 transition-all opacity-0 group-hover:opacity-100"
-                                  onChange={(e) => handleManualSelect(emp.id, 'checkIn', e.target.value)}
-                                  value={to24Hour(record.checkIn || "")}
-                                />
+                                <div className="flex gap-2">
+                                  <input 
+                                    type="time"
+                                    className="text-[11px] font-bold text-slate-400 outline-none bg-slate-50 border border-slate-200 px-2 py-1 rounded-md focus:border-teal-400 transition-all opacity-0 group-hover:opacity-100"
+                                    onChange={(e) => handleManualSelect(emp.id, 'checkIn', e.target.value)}
+                                    value={to24Hour(record.checkIn || "")}
+                                    title="Edit check-in time"
+                                  />
+                                  <button
+                                    onClick={() => handleUncheck(emp.id, 'checkIn')}
+                                    className="text-[11px] font-bold text-rose-500 outline-none bg-rose-50 border border-rose-200 px-2 py-1 rounded-md hover:bg-rose-100 transition-all opacity-0 group-hover:opacity-100"
+                                    title="Undo Check-in"
+                                  >
+                                    Undo
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <div className="flex items-center gap-3">
@@ -162,12 +176,22 @@ export default function AttendancePage() {
                             {record?.checkOut ? (
                               <div className="flex items-center gap-4">
                                 <span className="font-bold text-lg text-slate-900 border-b-2 border-teal-200 pb-0.5 tabular-nums">{record.checkOut}</span>
-                                <input 
-                                  type="time"
-                                  className="text-[11px] font-bold text-slate-400 outline-none bg-slate-50 border border-slate-200 px-2 py-1 rounded-md focus:border-teal-400 transition-all opacity-0 group-hover:opacity-100"
-                                  onChange={(e) => handleManualSelect(emp.id, 'checkOut', e.target.value)}
-                                  value={to24Hour(record.checkOut || "")}
-                                />
+                                <div className="flex gap-2">
+                                  <input 
+                                    type="time"
+                                    className="text-[11px] font-bold text-slate-400 outline-none bg-slate-50 border border-slate-200 px-2 py-1 rounded-md focus:border-teal-400 transition-all opacity-0 group-hover:opacity-100"
+                                    onChange={(e) => handleManualSelect(emp.id, 'checkOut', e.target.value)}
+                                    value={to24Hour(record.checkOut || "")}
+                                    title="Edit check-out time"
+                                  />
+                                  <button
+                                    onClick={() => handleUncheck(emp.id, 'checkOut')}
+                                    className="text-[11px] font-bold text-rose-500 outline-none bg-rose-50 border border-rose-200 px-2 py-1 rounded-md hover:bg-rose-100 transition-all opacity-0 group-hover:opacity-100"
+                                    title="Undo Check-out"
+                                  >
+                                    Undo
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <div className="flex items-center gap-3">

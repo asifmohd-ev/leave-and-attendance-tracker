@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { 
   collection, 
   onSnapshot, 
@@ -35,11 +36,15 @@ export type Leave = {
 };
 
 interface AppState {
+  user: FirebaseUser | null;
+  authLoaded: boolean;
   employees: Employee[];
   attendance: Attendance[];
   leaves: Leave[];
-  
+
   // Setters for listeners
+  setUser: (user: FirebaseUser | null) => void;
+  setAuthLoaded: (loaded: boolean) => void;
   setEmployees: (employees: Employee[]) => void;
   setAttendance: (attendance: Attendance[]) => void;
   setLeaves: (leaves: Leave[]) => void;
@@ -57,15 +62,24 @@ interface AppState {
 }
 
 export const useStore = create<AppState>()((set, get) => ({
+  user: null,
+  authLoaded: false,
   employees: [],
   attendance: [],
   leaves: [],
-  
+
+  setUser: (user) => set({ user }),
+  setAuthLoaded: (authLoaded) => set({ authLoaded }),
   setEmployees: (employees) => set({ employees }),
   setAttendance: (attendance) => set({ attendance }),
   setLeaves: (leaves) => set({ leaves }),
-  
+
   initRealtimeSync: () => {
+    // Listen to Auth
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      set({ user, authLoaded: true });
+    });
+
     // Listen to Employees
     const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
       const employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
@@ -85,6 +99,7 @@ export const useStore = create<AppState>()((set, get) => ({
     });
 
     return () => {
+      unsubAuth();
       unsubEmployees();
       unsubAttendance();
       unsubLeaves();
