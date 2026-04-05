@@ -61,10 +61,10 @@ export default function LeavesPage() {
   const groupedLeaves = [...normalizedLeaves].sort((a,b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
+    <div className="space-y-8 lg:space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
       <header className="mb-4">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Leave Management</h1>
-        <p className="text-slate-500 mt-1 text-base">Track and manage employee absences and leave protocols.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Leave Management</h1>
+        <p className="text-slate-500 mt-1 text-sm sm:text-base">Track and manage employee absences and leave protocols.</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

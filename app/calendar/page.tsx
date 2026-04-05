@@ -48,19 +48,19 @@ export default function CalendarPage() {
   const sickLeaves = leavesToday.filter(l => l.record.type === 'Sick/Emergency');
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto h-[calc(100vh-140px)] overflow-hidden flex flex-col pb-6">
+    <div className="space-y-6 lg:space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto lg:h-[calc(100vh-100px)] flex flex-col pb-6 lg:overflow-hidden">
       <header className="shrink-0 mb-2">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Attendance Matrix</h1>
-        <p className="text-slate-500 mt-1 text-base">Comprehensive view of workforce distribution and attendance patterns.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Attendance Matrix</h1>
+        <p className="text-slate-500 mt-1 text-sm sm:text-base">Comprehensive view of workforce distribution and attendance patterns.</p>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-8 min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:gap-8 min-h-0">
         
         {/* Left Pane: Calendar Grid */}
         <div className="w-full lg:w-3/5 xl:w-[65%] bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
-          <div className="p-8 border-b border-slate-50 flex items-center justify-between shrink-0 bg-slate-50/30">
-            <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Monthly Overview</h2>
-            <div className="flex items-center gap-4 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
+          <div className="p-4 sm:p-6 lg:p-8 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between shrink-0 bg-slate-50/30 gap-4 sm:gap-0">
+            <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block">Monthly Overview</h2>
+            <div className="flex items-center gap-2 sm:gap-4 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm w-full sm:w-auto justify-between sm:justify-start">
                <button 
                   onClick={() => { const d = new Date(currentMonth); d.setMonth(d.getMonth() - 1); setCurrentMonth(d); }}
                   className="p-2 hover:bg-slate-50 transition-all rounded-lg text-slate-400 hover:text-slate-900 focus:outline-none"
@@ -79,16 +79,16 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          <div className="p-8 flex-1 overflow-y-auto bg-white relative">
-            <div className="grid grid-cols-7 gap-3 mb-6">
+          <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto bg-white relative">
+            <div className="grid grid-cols-7 gap-1 sm:gap-3 mb-4 sm:mb-6">
               {['SUN','MON','TUE','WED','THU','FRI','SAT'].map(d => (
                 <div key={d} className="text-center text-[10px] font-bold uppercase tracking-widest text-slate-300 py-2 border-b border-slate-50">{d}</div>
               ))}
             </div>
             
-            <div className="grid grid-cols-7 gap-3">
+            <div className="grid grid-cols-7 gap-1 sm:gap-3">
                {Array.from({ length: monthStart.getDay() }).map((_, i) => (
-                <div key={`empty-${i}`} className="h-28 rounded-xl bg-slate-50/50 border border-slate-50 opacity-40" />
+                <div key={`empty-${i}`} className="h-16 sm:h-24 lg:h-28 rounded-lg sm:rounded-xl bg-slate-50/50 border border-slate-50 opacity-40" />
               ))}
               
               {daysInMonth.map((day) => {
@@ -104,7 +104,7 @@ export default function CalendarPage() {
                   <button 
                     key={dayStr}
                     onClick={() => setSelectedDate(day)}
-                    className={`h-28 rounded-xl border p-3 flex flex-col relative transition-all focus:outline-none group ${
+                    className={`h-16 sm:h-24 lg:h-28 rounded-lg sm:rounded-xl border p-1.5 sm:p-3 flex flex-col relative transition-all focus:outline-none group ${
                       _isSelected 
                         ? 'bg-teal-50 border-teal-600 shadow-md shadow-teal-50 z-10' 
                         : _isToday 
@@ -113,17 +113,17 @@ export default function CalendarPage() {
                     }`}
                   >
                     <div className="flex justify-between items-start mb-auto w-full">
-                      <span className={`text-[10px] font-bold flex items-center justify-center w-7 h-7 rounded-lg transition-all ${
-                        _isSelected ? 'bg-teal-600 text-white' : _isToday ? 'bg-teal-50 text-teal-600' : 'text-slate-300'
+                      <span className={`text-[10px] sm:text-[11px] font-bold flex items-center justify-center w-5 h-5 sm:w-7 sm:h-7 rounded-md sm:rounded-lg transition-all mx-auto sm:mx-0 ${
+                        _isSelected ? 'bg-teal-600 text-white' : _isToday ? 'bg-teal-50 text-teal-600' : 'text-slate-500 sm:text-slate-300'
                       }`}>
                         {format(day, 'd')}
                       </span>
                     </div>
                     
-                    <div className="flex items-center gap-1.5 justify-end w-full">
-                      {hasAttendance && <div className="w-1.5 h-1.5 rounded-full bg-teal-500" title="Present" />}
-                      {hasAnnualLeave && <div className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Annual Leave" />}
-                      {hasSickLeave && <div className="w-1.5 h-1.5 rounded-full bg-rose-400" title="Sick Leave" />}
+                    <div className="flex items-center gap-0.5 sm:gap-1.5 justify-center sm:justify-end w-full mt-1 sm:mt-0">
+                      {hasAttendance && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-teal-500" title="Present" />}
+                      {hasAnnualLeave && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-amber-400" title="Annual Leave" />}
+                      {hasSickLeave && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-rose-400" title="Sick Leave" />}
                     </div>
                   </button>
                 );
@@ -133,13 +133,13 @@ export default function CalendarPage() {
         </div>
 
         {/* Right Pane: Daily Summary */}
-        <div className="w-full lg:w-2/5 xl:w-[35%] bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
-          <div className="p-8 border-b border-slate-50 bg-slate-50/30">
+        <div className="w-full lg:w-2/5 xl:w-[35%] bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col min-h-[400px]">
+          <div className="p-6 lg:p-8 border-b border-slate-50 bg-slate-50/30">
             <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Daily Summary</h2>
-            <p className="text-2xl font-bold text-slate-900 tracking-tight">{format(selectedDate, 'EEEE, MMM do')}</p>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{format(selectedDate, 'EEEE, MMM do')}</p>
           </div>
 
-          <div className="p-8 flex-1 overflow-y-auto space-y-10 bg-white">
+          <div className="p-6 lg:p-8 flex-1 overflow-y-auto space-y-8 lg:space-y-10 bg-white">
             
             {/* Presence */}
             <section className="space-y-5">
