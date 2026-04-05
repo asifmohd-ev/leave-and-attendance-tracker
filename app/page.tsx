@@ -2,7 +2,7 @@
 
 import { useStore } from "@/lib/store";
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
+import { format, isWithinInterval, parseISO } from "date-fns";
 import { 
   Users, 
   UserCheck, 
@@ -39,8 +39,15 @@ export default function Dashboard() {
     );
   }
 
+  const isLeaveActive = (l: any, targetStr: string) => {
+    const start = l.startDate || l.date;
+    const end = l.endDate || start;
+    if (!start) return false;
+    try { return isWithinInterval(parseISO(targetStr), { start: parseISO(start), end: parseISO(end) }); } catch { return false; }
+  };
+
   const presentsOnSelectedDate = attendance.filter(a => a.date === selectedDateStr && a.checkIn).length;
-  const leavesOnSelectedDate = leaves.filter(l => l.date === selectedDateStr);
+  const leavesOnSelectedDate = leaves.filter(l => isLeaveActive(l, selectedDateStr));  
 
   const stats = [
     {

@@ -2,7 +2,7 @@
 
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, isWithinInterval, parseISO } from "date-fns";
 import { ChevronLeft, ChevronRight, UserCheck, CalendarOff, ShieldAlert, CircleDashed } from "lucide-react";
 
 export default function CalendarPage() {
@@ -22,13 +22,24 @@ export default function CalendarPage() {
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   
+  const isLeaveActive = (l: any, targetDateStr: string) => {
+    const start = l.startDate || l.date;
+    const end = l.endDate || start;
+    if (!start) return false;
+    try {
+      return isWithinInterval(parseISO(targetDateStr), { start: parseISO(start), end: parseISO(end) });
+    } catch {
+      return false;
+    }
+  };
+
   // Details for selected Date
   const attendedToday = attendance.filter(a => a.date === dateStr && a.checkIn).map(a => ({
     record: a,
     emp: employees.find(e => e.id === a.employeeId)
   })).filter(x => x.emp);
 
-  const leavesToday = leaves.filter(l => l.date === dateStr).map(l => ({
+  const leavesToday = leaves.filter(l => isLeaveActive(l, dateStr)).map(l => ({
     record: l,
     emp: employees.find(e => e.id === l.employeeId)
   })).filter(x => x.emp);
@@ -86,8 +97,8 @@ export default function CalendarPage() {
                 const _isSelected = isSameDay(day, selectedDate);
                 
                 const hasAttendance = attendance.some(a => a.date === dayStr && a.checkIn);
-                const hasAnnualLeave = leaves.some(l => l.date === dayStr && l.type === 'Annual');
-                const hasSickLeave = leaves.some(l => l.date === dayStr && l.type === 'Sick/Emergency');
+                const hasAnnualLeave = leaves.some(l => l.type === 'Annual' && isLeaveActive(l, dayStr));
+                const hasSickLeave = leaves.some(l => l.type === 'Sick/Emergency' && isLeaveActive(l, dayStr));
 
                 return (
                   <button 
