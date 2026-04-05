@@ -131,7 +131,7 @@ export default function AttendancePage() {
                                   type="time"
                                   className="text-[11px] font-bold text-slate-400 outline-none bg-slate-50 border border-slate-200 px-2 py-1 rounded-md focus:border-teal-400 transition-all opacity-0 group-hover:opacity-100"
                                   onChange={(e) => handleManualSelect(emp.id, 'checkIn', e.target.value)}
-                                  value={to24Hour(record.checkIn)}
+                                  value={to24Hour(record.checkIn || "")}
                                 />
                               </div>
                             ) : (
@@ -146,6 +146,7 @@ export default function AttendancePage() {
                                   type="time"
                                   className="bg-white border border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-600 outline-none focus:border-teal-400 transition-all rounded-lg w-32"
                                   onChange={(e) => handleManualSelect(emp.id, 'checkIn', e.target.value)}
+                                  value={""}
                                 />
                               </div>
                             )}
@@ -158,7 +159,7 @@ export default function AttendancePage() {
                                   type="time"
                                   className="text-[11px] font-bold text-slate-400 outline-none bg-slate-50 border border-slate-200 px-2 py-1 rounded-md focus:border-teal-400 transition-all opacity-0 group-hover:opacity-100"
                                   onChange={(e) => handleManualSelect(emp.id, 'checkOut', e.target.value)}
-                                  value={to24Hour(record.checkOut)}
+                                  value={to24Hour(record.checkOut || "")}
                                 />
                               </div>
                             ) : (
@@ -175,6 +176,7 @@ export default function AttendancePage() {
                                   className="bg-white border border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-600 outline-none focus:border-teal-400 transition-all rounded-lg w-32 disabled:opacity-50"
                                   onChange={(e) => handleManualSelect(emp.id, 'checkOut', e.target.value)}
                                   disabled={!record?.checkIn}
+                                  value={""}
                                 />
                               </div>
                             )}
