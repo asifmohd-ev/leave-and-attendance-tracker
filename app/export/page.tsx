@@ -2,7 +2,7 @@
 
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
-import { format, isWithinInterval, parseISO } from "date-fns";
+import { format, isWithinInterval, parseISO, eachDayOfInterval } from "date-fns";
 import { Calendar, Users, Settings2, Download, CheckSquare, Table, Zap } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -54,26 +54,51 @@ export default function ExportPage() {
     let globalAtt = 0;
     let globalAnn = 0;
     let globalSick = 0;
+    const empCounts: Record<string, { att: number, ann: number, sick: number }> = {};
 
     selectedEmps.forEach(empId => {
       const emp = employees.find(e => e.id === empId);
       if (!emp) return;
       
       const atts = attendance.filter(a => a.employeeId === empId && a.checkIn && isDateInRange(a.date));
-      const anns = leaves.filter(l => l.employeeId === empId && l.type === 'Annual' && isDateInRange(l.date));
-      const sicks = leaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency' && isDateInRange(l.date));
+      const rawAnns = leaves.filter(l => l.employeeId === empId && l.type === 'Annual');
+      const rawSicks = leaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency');
+
+      const anns: string[] = [];
+      rawAnns.forEach(l => {
+        const start = l.startDate || (l as any).date;
+        const end = l.endDate || start;
+        if (!start) return;
+        eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
+          const dStr = format(d, 'yyyy-MM-dd');
+          if (isDateInRange(dStr)) anns.push(dStr);
+        });
+      });
+
+      const sicks: string[] = [];
+      rawSicks.forEach(l => {
+        const start = l.startDate || (l as any).date;
+        const end = l.endDate || start;
+        if (!start) return;
+        eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
+          const dStr = format(d, 'yyyy-MM-dd');
+          if (isDateInRange(dStr)) sicks.push(dStr);
+        });
+      });
+
+      empCounts[empId] = { att: atts.length, ann: anns.length, sick: sicks.length };
 
       globalAtt += atts.length;
       globalAnn += anns.length;
       globalSick += sicks.length;
 
       if (incAttendance) atts.forEach(a => records.push({ Emp: emp.name, Date: a.date, Type: 'Attendance', Details: `IN: ${a.checkIn} ${a.checkOut ? `OUT: ${a.checkOut}` : ''}` }));
-      if (incAnnual) anns.forEach(l => records.push({ Emp: emp.name, Date: l.date, Type: 'Annual Leave', Details: 'Full Day' }));
-      if (incSick) sicks.forEach(l => records.push({ Emp: emp.name, Date: l.date, Type: 'Sick Leave', Details: 'Full Day' }));
+      if (incAnnual) anns.forEach(dStr => records.push({ Emp: emp.name, Date: dStr, Type: 'Annual Leave', Details: 'Full Day' }));
+      if (incSick) sicks.forEach(dStr => records.push({ Emp: emp.name, Date: dStr, Type: 'Sick Leave', Details: 'Full Day' }));
     });
     
     records.sort((a,b) => new Date(a.Date).getTime() - new Date(b.Date).getTime());
-    return { records, globalAtt, globalAnn, globalSick };
+    return { records, globalAtt, globalAnn, globalSick, empCounts };
   };
 
   const getFileRangeName = () => {
@@ -86,7 +111,7 @@ export default function ExportPage() {
   const generatePDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
-    const { records, globalAtt, globalAnn, globalSick } = getFilteredData();
+    const { records, globalAtt, globalAnn, globalSick, empCounts } = getFilteredData();
     
     // Load Logo with Promise for async handling
     const loadImg = (url: string): Promise<HTMLImageElement> => {
@@ -183,10 +208,8 @@ export default function ExportPage() {
       const summaryBody = selectedEmps.map(empId => {
         const emp = employees.find(e => e.id === empId);
         if(!emp) return [];
-        const attCount = attendance.filter(a => a.employeeId === empId && a.checkIn && isDateInRange(a.date)).length;
-        const annCount = leaves.filter(l => l.employeeId === empId && l.type === 'Annual' && isDateInRange(l.date)).length;
-        const sickCount = leaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency' && isDateInRange(l.date)).length;
-        return [emp.name, attCount.toString(), annCount.toString(), sickCount.toString()];
+        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
+        return [emp.name, counts.att.toString(), counts.ann.toString(), counts.sick.toString()];
       }).filter(x => x.length > 0);
 
       autoTable(doc, {
@@ -241,7 +264,7 @@ export default function ExportPage() {
   };
 
   const generateExcel = () => {
-    const { records, globalAtt, globalAnn, globalSick } = getFilteredData();
+    const { records, globalAtt, globalAnn, globalSick, empCounts } = getFilteredData();
     const wb = XLSX.utils.book_new();
     const rangeText = (fromDate && toDate) ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`) : "Range: All Time";
 
@@ -256,11 +279,12 @@ export default function ExportPage() {
       selectedEmps.forEach(empId => {
         const emp = employees.find(e => e.id === empId);
         if(!emp) return;
+        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
         sumData.push([
           emp.name, 
-          attendance.filter(a => a.employeeId === empId && a.checkIn && isDateInRange(a.date)).length.toString(),
-          leaves.filter(l => l.employeeId === empId && l.type === 'Annual' && isDateInRange(l.date)).length.toString(),
-          leaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency' && isDateInRange(l.date)).length.toString()
+          counts.att.toString(),
+          counts.ann.toString(),
+          counts.sick.toString()
         ]);
       });
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Workforce Summary");
