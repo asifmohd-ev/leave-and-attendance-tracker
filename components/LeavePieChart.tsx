@@ -20,9 +20,24 @@ interface LeavePieChartProps {
 export default function LeavePieChart({ selectedDate = new Date() }: LeavePieChartProps) {
   const { leaves } = useStore();
 
-  const filteredLeaves = leaves.filter((l) => isSameMonth(new Date(l.date), selectedDate));
-  const annualCount = filteredLeaves.filter((l) => l.type === "Annual").length;
-  const sickCount = filteredLeaves.filter((l) => l.type === "Sick/Emergency").length;
+  const normalize = (l: any) => ({
+    ...l,
+    startDate: l.startDate || l.date || new Date().toISOString(),
+    endDate: l.endDate || l.date || new Date().toISOString(),
+  });
+
+  const normalizedLeaves = leaves.map(normalize);
+  const filteredLeaves = normalizedLeaves.filter((l) => isSameMonth(new Date(l.startDate), selectedDate) || isSameMonth(new Date(l.endDate), selectedDate));
+  
+  let annualCount = 0;
+  let sickCount = 0;
+
+  filteredLeaves.forEach(l => {
+    const diffTime = Math.abs(new Date(l.endDate).getTime() - new Date(l.startDate).getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (l.type === "Annual") annualCount += diffDays;
+    else sickCount += diffDays;
+  });
 
   const data = [
     { name: "Annual", value: annualCount, color: "#0D9488" }, 

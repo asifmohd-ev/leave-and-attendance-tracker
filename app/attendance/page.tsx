@@ -87,7 +87,14 @@ export default function AttendancePage() {
                 {employees.map((emp) => {
                   const record = attendance.find(a => a.employeeId === emp.id && a.date === dateStr);
                   const isPresent = !!record?.checkIn;
-                  const currentLeave = leaves.find(l => l.employeeId === emp.id && l.date === dateStr);
+                  
+                  // Now must check logic against the date range, adding fallback for legacy docs
+                  const currentLeave = leaves.find(l => {
+                    if (l.employeeId !== emp.id) return false;
+                    const start = l.startDate || (l as any).date;
+                    const end = l.endDate || (l as any).date;
+                    return dateStr >= start && dateStr <= end; 
+                  });
                   
                   return (
                     <tr key={emp.id} className={`transition-all duration-200 ${currentLeave ? 'bg-rose-50/30' : 'hover:bg-slate-50 group'}`}>

@@ -24,12 +24,18 @@ export default function LeavesPage() {
     setErrorMsg("");
     if (!selectedEmp || !leaveDate) return;
 
-    const datesToMark = leaveType === 'Annual' 
-      ? eachDayOfInterval({ start: new Date(leaveDate), end: new Date(toDate) }).map(d => format(d, 'yyyy-MM-dd'))
-      : [leaveDate];
+    let finalStart = leaveDate;
+    let finalEnd = leaveDate;
 
-    // Check collision with Attendance Check-Ins
-    const hasCollision = datesToMark.some(d => 
+    if (leaveType === 'Annual') {
+       finalStart = leaveDate;
+       finalEnd = toDate;
+    }
+
+    // Generate dates to check for simple attendance collisions 
+    const dateArray = eachDayOfInterval({ start: new Date(finalStart), end: new Date(finalEnd) }).map(d => format(d, 'yyyy-MM-dd'));
+
+    const hasCollision = dateArray.some(d => 
       attendance.some(a => a.employeeId === selectedEmp && a.date === d && a.checkIn)
     );
 
@@ -38,13 +44,21 @@ export default function LeavesPage() {
       return;
     }
 
-    datesToMark.forEach(dateStr => {
-      addLeave(selectedEmp, dateStr, leaveType);
-    });
+    addLeave(selectedEmp, finalStart, finalEnd, leaveType);
 
     setSelectedEmp("");
     setErrorMsg("");
   };
+
+  // Fallback to .date for old documents before the migration
+  const normalizedLeaves = leaves.map(l => ({
+    ...l,
+    startDate: l.startDate || (l as any).date || format(new Date(), 'yyyy-MM-dd'),
+    endDate: l.endDate || (l as any).date || format(new Date(), 'yyyy-MM-dd')
+  }));
+
+  // we don't need complex grouping logic anymore because they are already range documents in the backend!
+  const groupedLeaves = [...normalizedLeaves].sort((a,b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
@@ -173,38 +187,43 @@ export default function LeavesPage() {
               </span>
             </div>
             
-            {leaves.length === 0 ? (
+            {groupedLeaves.length === 0 ? (
               <div className="p-20 text-center flex flex-col items-center justify-center flex-1 space-y-4">
                 <CalendarOff size={40} className="text-slate-200" strokeWidth={2} />
                 <p className="font-semibold text-slate-400 text-sm">No leave records identified.</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-50 overflow-y-auto" style={{ maxHeight: '800px' }}>
-                {[...leaves].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(leave => {
-                  const emp = employees.find(e => e.id === leave.employeeId);
+                {groupedLeaves.map(group => {
+                  const emp = employees.find(e => e.id === group.employeeId);
                   if (!emp) return null;
                   
                   return (
-                    <div key={leave.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-6 px-8 hover:bg-slate-50/80 transition-all group gap-6">
+                    <div key={group.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-6 px-8 hover:bg-slate-50/80 transition-all gap-6 group">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-slate-100 border-2 border-white text-slate-400 font-bold text-lg flex items-center justify-center shadow-sm rounded-full shrink-0 group-hover:scale-105 transition-transform">
                           {emp.photoUrl ? <img src={emp.photoUrl} alt="" className="w-full h-full object-cover rounded-full"/> : emp.name.charAt(0)}
                         </div>
                         <div>
                           <p className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-teal-600 transition-colors">{emp.name}</p>
-                          <p className="text-[11px] font-semibold text-slate-400 tabular-nums">{format(new Date(leave.date), 'EEEE, MMM dd, yyyy')}</p>
+                          <p className="text-[11px] font-semibold text-slate-400 tabular-nums">
+                            {group.startDate === group.endDate 
+                              ? format(new Date(group.startDate), 'EEEE, MMM dd, yyyy')
+                              : `${format(new Date(group.startDate), 'MMM dd')} - ${format(new Date(group.endDate), 'MMM dd, yyyy')} (${eachDayOfInterval({start: new Date(group.startDate), end: new Date(group.endDate)}).length} days)`
+                            }
+                          </p>
                         </div>
                       </div>
                       
                       <div className="flex items-center justify-between sm:justify-end gap-8 w-full sm:w-auto">
                         <span className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border shadow-sm ${
-                          leave.type === 'Annual' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500'
+                          group.type === 'Annual' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500'
                         }`}>
-                          {leave.type}
+                          {group.type}
                         </span>
                         
                         <button 
-                          onClick={() => removeLeave(leave.id)}
+                          onClick={() => removeLeave(group.id)}
                           className="p-2.5 text-slate-400 border border-slate-100 hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 rounded-lg"
                         >
                           <Trash2 size={16} strokeWidth={2.5} />

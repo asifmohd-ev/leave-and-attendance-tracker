@@ -40,9 +40,20 @@ export default function EmployeeProfilePage() {
   const monthlyAttendance = attendance.filter(a => a.employeeId === id && isSameMonth(new Date(a.date), currentMonth) && a.checkIn);
   
   // All Time Stats
-  const allTimeLeaves = leaves.filter(l => l.employeeId === id);
-  const totalAnnual = allTimeLeaves.filter(l => l.type === 'Annual').length;
-  const totalSick = allTimeLeaves.filter(l => l.type === 'Sick/Emergency').length;
+  const allTimeLeaves = leaves.filter(l => l.employeeId === id).map(l => ({
+    ...l,
+    startDate: l.startDate || (l as any).date || new Date().toISOString(),
+    endDate: l.endDate || (l as any).date || new Date().toISOString()
+  }));
+
+  let totalAnnual = 0;
+  let totalSick = 0;
+  allTimeLeaves.forEach(l => {
+    const diffTime = Math.abs(new Date(l.endDate).getTime() - new Date(l.startDate).getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (l.type === 'Annual') totalAnnual += diffDays;
+    else totalSick += diffDays;
+  });
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
@@ -159,7 +170,11 @@ export default function EmployeeProfilePage() {
             {daysInMonth.map((day) => {
               const dateStr = format(day, 'yyyy-MM-dd');
               const attRecord = attendance.find(a => a.employeeId === id && a.date === dateStr);
-              const leaveRecord = leaves.find(l => l.employeeId === id && l.date === dateStr);
+              const leaveRecord = allTimeLeaves.find(l => {
+                const start = l.startDate;
+                const end = l.endDate;
+                return dateStr >= start && dateStr <= end;
+              });
               const _isToday = isToday(day);
 
               return (

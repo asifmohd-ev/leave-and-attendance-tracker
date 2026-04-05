@@ -29,7 +29,8 @@ export type LeaveType = 'Annual' | 'Sick/Emergency';
 export type Leave = {
   id: string;
   employeeId: string;
-  date: string; // YYYY-MM-DD
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
   type: LeaveType;
 };
 
@@ -48,7 +49,7 @@ interface AppState {
   updateEmployee: (id: string, updates: Partial<Employee>) => Promise<void>;
   removeEmployee: (id: string) => Promise<void>;
   markAttendance: (employeeId: string, date: string, type: 'checkIn' | 'checkOut', time: string) => Promise<void>;
-  addLeave: (employeeId: string, date: string, type: LeaveType) => Promise<void>;
+  addLeave: (employeeId: string, startDate: string, endDate: string, type: LeaveType) => Promise<void>;
   removeLeave: (id: string) => Promise<void>;
   
   // Initializer
@@ -139,15 +140,21 @@ export const useStore = create<AppState>()((set, get) => ({
     }
   },
   
-  addLeave: async (employeeId, date, type) => {
+  addLeave: async (employeeId, startDate, endDate, type) => {
+    // Check if a leave overlaps entirely (basic check, can be expanded)
     const state = get();
-    const exists = state.leaves.find((l) => l.employeeId === employeeId && l.date === date);
-    if (exists) return; // Prevent duplicate leave
+    const isCollision = state.leaves.some((l) => {
+       if (l.employeeId !== employeeId) return false;
+       return (startDate <= l.endDate && endDate >= l.startDate);
+    });
+
+    if (isCollision) return; // overlap 
     
     const id = crypto.randomUUID();
     await setDoc(doc(db, 'leaves', id), {
       employeeId,
-      date,
+      startDate,
+      endDate,
       type
     });
   },
