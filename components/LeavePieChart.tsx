@@ -15,9 +15,10 @@ import { PieChart as PieChartIcon } from "lucide-react";
 
 interface LeavePieChartProps {
   selectedDate?: Date;
+  viewMode?: "daily" | "whole_data";
 }
 
-export default function LeavePieChart({ selectedDate = new Date() }: LeavePieChartProps) {
+export default function LeavePieChart({ selectedDate = new Date(), viewMode = "daily" }: LeavePieChartProps) {
   const { leaves } = useStore();
 
   const normalize = (l: any) => ({
@@ -27,7 +28,9 @@ export default function LeavePieChart({ selectedDate = new Date() }: LeavePieCha
   });
 
   const normalizedLeaves = leaves.map(normalize);
-  const filteredLeaves = normalizedLeaves.filter((l) => isSameMonth(new Date(l.startDate), selectedDate) || isSameMonth(new Date(l.endDate), selectedDate));
+  const filteredLeaves = viewMode === "whole_data" 
+    ? normalizedLeaves 
+    : normalizedLeaves.filter((l) => isSameMonth(new Date(l.startDate), selectedDate) || isSameMonth(new Date(l.endDate), selectedDate));
   
   let annualCount = 0;
   let sickCount = 0;

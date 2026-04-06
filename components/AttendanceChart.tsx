@@ -15,23 +15,51 @@ import {
 
 interface AttendanceChartProps {
   selectedDate?: Date;
+  viewMode?: "daily" | "whole_data";
 }
 
-export default function AttendanceChart({ selectedDate = new Date() }: AttendanceChartProps) {
+export default function AttendanceChart({ selectedDate = new Date(), viewMode = "daily" }: AttendanceChartProps) {
   const { attendance } = useStore();
 
-  // Generate last 7 days of data ending at selectedDate
-  const data = Array.from({ length: 7 }, (_, i) => {
-    const date = subDays(selectedDate, 6 - i);
-    const dateStr = format(date, "yyyy-MM-dd");
-    const count = attendance.filter((a) => a.date === dateStr && a.checkIn).length;
+  let data;
 
-    return {
-      name: format(date, "EEE"),
-      fullDate: dateStr,
-      count,
-    };
-  });
+  if (viewMode === "whole_data") {
+    const daysData = [
+      { name: "Sun", count: 0, fullDate: "All Time (Sun)" },
+      { name: "Mon", count: 0, fullDate: "All Time (Mon)" },
+      { name: "Tue", count: 0, fullDate: "All Time (Tue)" },
+      { name: "Wed", count: 0, fullDate: "All Time (Wed)" },
+      { name: "Thu", count: 0, fullDate: "All Time (Thu)" },
+      { name: "Fri", count: 0, fullDate: "All Time (Fri)" },
+      { name: "Sat", count: 0, fullDate: "All Time (Sat)" },
+    ];
+    
+    attendance.forEach(a => {
+      if (a.checkIn) {
+        try {
+          const d = new Date(a.date + "T12:00:00Z");
+          const dayName = format(d, "EEE"); 
+          const match = daysData.find(dd => dd.name === dayName);
+          if (match) match.count += 1;
+        } catch { }
+      }
+    });
+
+    data = daysData;
+  } else {
+    // Generate last 7 days of data ending at selectedDate
+    data = Array.from({ length: 7 }, (_, i) => {
+      const date = subDays(selectedDate, 6 - i);
+      const dateStr = format(date, "yyyy-MM-dd");
+      const count = attendance.filter((a) => a.date === dateStr && a.checkIn).length;
+
+      return {
+        name: format(date, "EEE"),
+        fullDate: dateStr,
+        count,
+      };
+    });
+  }
 
   return (
     <div className="h-[300px] w-full">
@@ -78,13 +106,16 @@ export default function AttendanceChart({ selectedDate = new Date() }: Attendanc
             barSize={45}
             animationDuration={1500}
           >
-            {data.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={isSameDay(selectedDate, new Date(entry.fullDate)) ? "#22D3EE" : "#1E293B"}
-                fillOpacity={isSameDay(selectedDate, new Date(entry.fullDate)) ? 1 : 0.4}
-              />
-            ))}
+            {data.map((entry, index) => {
+              const isSelected = viewMode === "whole_data" || (entry.fullDate.startsWith("All") ? false : isSameDay(selectedDate, new Date(entry.fullDate)));
+              return (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={isSelected ? "#22D3EE" : "#1E293B"}
+                  fillOpacity={isSelected ? 1 : 0.4}
+                />
+              );
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>

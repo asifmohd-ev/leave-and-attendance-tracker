@@ -20,6 +20,7 @@ import MinimalDateSelector from "@/components/MinimalDateSelector";
 export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<"daily" | "whole_data">("daily");
   const { employees, attendance, leaves } = useStore();
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const isSelectedToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
@@ -46,8 +47,13 @@ export default function Dashboard() {
     try { return isWithinInterval(parseISO(targetStr), { start: parseISO(start), end: parseISO(end) }); } catch { return false; }
   };
 
-  const presentsOnSelectedDate = attendance.filter(a => a.date === selectedDateStr && a.checkIn).length;
-  const leavesOnSelectedDate = leaves.filter(l => isLeaveActive(l, selectedDateStr));  
+  const presentsOnSelectedDate = viewMode === "whole_data"
+    ? attendance.filter(a => a.checkIn).length
+    : attendance.filter(a => a.date === selectedDateStr && a.checkIn).length;
+    
+  const leavesOnSelectedDate = viewMode === "whole_data"
+    ? leaves
+    : leaves.filter(l => isLeaveActive(l, selectedDateStr));  
 
   const stats = [
     {
@@ -59,7 +65,7 @@ export default function Dashboard() {
       bg: "bg-teal-50",
     },
     {
-      label: "Daily Presence",
+      label: viewMode === "whole_data" ? "Total Check-ins" : "Daily Presence",
       value: presentsOnSelectedDate,
       icon: UserCheck,
       link: "/attendance",
@@ -67,7 +73,7 @@ export default function Dashboard() {
       bg: "bg-emerald-50",
     },
     {
-      label: "Active Leaves",
+      label: viewMode === "whole_data" ? "Total Logged Leaves" : "Active Leaves",
       value: leavesOnSelectedDate.length,
       icon: CalendarOff,
       link: "/leaves",
@@ -78,16 +84,32 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
-      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
           <p className="text-slate-500 mt-1 text-base">Overview of core metrics and operational data.</p>
         </div>
-        <div>
-          <MinimalDateSelector 
-            selectedDate={selectedDate} 
-            onDateChange={(date) => setSelectedDate(date)} 
-          />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-1 flex items-center shadow-sm">
+            <button 
+              onClick={() => setViewMode("daily")}
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${viewMode === 'daily' ? 'bg-slate-100 text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+            >
+              Daily View
+            </button>
+            <button 
+              onClick={() => setViewMode("whole_data")}
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${viewMode === 'whole_data' ? 'bg-slate-100 text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+            >
+              Whole Data
+            </button>
+          </div>
+          {viewMode === "daily" && (
+            <MinimalDateSelector 
+              selectedDate={selectedDate} 
+              onDateChange={(date) => setSelectedDate(date)} 
+            />
+          )}
         </div>
       </header>
 
@@ -120,7 +142,7 @@ export default function Dashboard() {
             <TrendingUp size={18} className="text-teal-600" strokeWidth={2.5} />
             <h2 className="text-sm font-bold text-slate-800 tracking-tight">Attendance Analysis</h2>
           </div>
-          <AttendanceChart selectedDate={selectedDate} />
+          <AttendanceChart selectedDate={selectedDate} viewMode={viewMode} />
         </div>
 
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
@@ -128,7 +150,7 @@ export default function Dashboard() {
             <PieChartIcon size={18} className="text-rose-600" strokeWidth={2.5} />
             <h2 className="text-sm font-bold text-slate-800 tracking-tight">Leave Distribution</h2>
           </div>
-          <LeavePieChart selectedDate={selectedDate} />
+          <LeavePieChart selectedDate={selectedDate} viewMode={viewMode} />
         </div>
       </div>
 
@@ -139,7 +161,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <CalendarCheck size={18} className="text-amber-500" strokeWidth={2.5} />
               <h2 className="text-sm font-bold text-slate-800 tracking-tight">
-                Active Entries {isSelectedToday ? "Today" : `on ${format(selectedDate, 'MMM dd')}`}
+                {viewMode === "whole_data" ? "All Recorded Leaves" : `Active Entries ${isSelectedToday ? "Today" : `on ${format(selectedDate, 'MMM dd')}`}`}
               </h2>
             </div>
             <Link href="/leaves" className="text-[10px] font-bold text-teal-600 hover:text-teal-700 flex items-center gap-1.5 uppercase tracking-widest transition-colors">
