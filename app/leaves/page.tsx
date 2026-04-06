@@ -3,7 +3,7 @@
 import { useStore, LeaveType } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, eachDayOfInterval } from "date-fns";
-import { CalendarOff, Trash2, Zap, CircleDashed, AlertTriangle } from "lucide-react";
+import { CalendarOff, Trash2, Zap, CircleDashed, AlertTriangle, Layers } from "lucide-react";
 import AnnualLeaveChart from "@/components/AnnualLeaveChart";
 import LeaveBalancesGrid from "@/components/LeaveBalancesGrid";
 
@@ -16,6 +16,7 @@ export default function LeavesPage() {
   const [toDate, setToDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [leaveType, setLeaveType] = useState<LeaveType>("Sick/Emergency");
   const [errorMsg, setErrorMsg] = useState("");
+  const [timeHorizon, setTimeHorizon] = useState<"current_year" | "all_time">("current_year");
 
   useEffect(() => setMounted(true), []);
 
@@ -64,9 +65,27 @@ export default function LeavesPage() {
 
   return (
     <div className="space-y-8 lg:space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
-      <header className="mb-4">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Leave Management</h1>
-        <p className="text-slate-500 mt-1 text-sm sm:text-base">Track and manage employee absences and leave protocols.</p>
+      <header className="mb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Leave Management</h1>
+          <p className="text-slate-500 mt-1 text-sm sm:text-base">Track and manage employee absences and leave protocols.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-1 flex items-center shadow-sm">
+            <button 
+              onClick={() => setTimeHorizon("current_year")}
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${timeHorizon === 'current_year' ? 'bg-slate-100 text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+            >
+              Current Year
+            </button>
+            <button 
+              onClick={() => setTimeHorizon("all_time")}
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${timeHorizon === 'all_time' ? 'bg-slate-100 text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+            >
+              Whole Data
+            </button>
+          </div>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -183,10 +202,10 @@ export default function LeavesPage() {
         <div className="lg:col-span-8 space-y-8">
           
           {/* Annual Leave Graph */}
-          <AnnualLeaveChart />
+          <AnnualLeaveChart timeHorizon={timeHorizon} />
 
           {/* Leave Balances Cards */}
-          <LeaveBalancesGrid />
+          <LeaveBalancesGrid timeHorizon={timeHorizon} />
 
           {/* System History */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col max-h-[800px] overflow-hidden">

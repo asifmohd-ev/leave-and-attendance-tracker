@@ -4,7 +4,11 @@ import { useStore } from "@/lib/store";
 import { eachDayOfInterval, getYear } from "date-fns";
 import { CalendarOff, BadgeAlert } from "lucide-react";
 
-export default function LeaveBalancesGrid() {
+interface Props {
+  timeHorizon?: "current_year" | "all_time";
+}
+
+export default function LeaveBalancesGrid({ timeHorizon = "current_year" }: Props) {
   const { employees, leaves } = useStore();
   const currentYear = new Date().getFullYear();
 
@@ -22,7 +26,7 @@ export default function LeaveBalancesGrid() {
       try {
         const days = eachDayOfInterval({ start, end });
         days.forEach(d => {
-          if (getYear(d) === currentYear) {
+          if (timeHorizon === "all_time" || getYear(d) === currentYear) {
             if (l.type === 'Annual') annualTaken += 1;
             else sickTaken += 1;
           }

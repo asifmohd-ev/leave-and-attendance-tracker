@@ -14,7 +14,11 @@ import {
 import { eachDayOfInterval, getYear } from "date-fns";
 import { BarChart3 } from "lucide-react";
 
-export default function AnnualLeaveChart() {
+interface Props {
+  timeHorizon?: "current_year" | "all_time";
+}
+
+export default function AnnualLeaveChart({ timeHorizon = "current_year" }: Props) {
   const { employees, leaves } = useStore();
   const currentYear = new Date().getFullYear();
 
@@ -32,7 +36,7 @@ export default function AnnualLeaveChart() {
       try {
         const days = eachDayOfInterval({ start, end });
         days.forEach(d => {
-          if (getYear(d) === currentYear) {
+          if (timeHorizon === "all_time" || getYear(d) === currentYear) {
             taken += 1;
           }
         });
@@ -62,7 +66,9 @@ export default function AnnualLeaveChart() {
       <div className="flex items-start justify-between mb-8">
         <div>
           <h3 className="text-sm font-bold text-slate-800 tracking-tight">Annual Leave Distribution</h3>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-1">Current Year ({currentYear}) | 28 Day Limit</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-1">
+             {timeHorizon === "all_time" ? "Whole Data (All Time)" : `Current Year (${currentYear})`} | 28 Day Limit
+          </p>
         </div>
         <BarChart3 size={20} strokeWidth={2.5} className="text-teal-600" />
       </div>
