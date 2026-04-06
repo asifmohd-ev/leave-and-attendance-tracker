@@ -4,6 +4,8 @@ import { useStore, LeaveType } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, eachDayOfInterval } from "date-fns";
 import { CalendarOff, Trash2, Zap, CircleDashed, AlertTriangle } from "lucide-react";
+import AnnualLeaveChart from "@/components/AnnualLeaveChart";
+import LeaveBalancesGrid from "@/components/LeaveBalancesGrid";
 
 export default function LeavesPage() {
   const [mounted, setMounted] = useState(false);
@@ -178,8 +180,16 @@ export default function LeavesPage() {
           </form>
         </div>
 
-        <div className="lg:col-span-8">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden">
+        <div className="lg:col-span-8 space-y-8">
+          
+          {/* Annual Leave Graph */}
+          <AnnualLeaveChart />
+
+          {/* Leave Balances Cards */}
+          <LeaveBalancesGrid />
+
+          {/* System History */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col max-h-[800px] overflow-hidden">
             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h2 className="text-sm font-bold text-slate-800 tracking-tight">System History</h2>
               <span className="px-3 py-1 bg-white border border-slate-200 text-slate-500 text-[10px] font-bold rounded-lg shadow-sm tabular-nums">

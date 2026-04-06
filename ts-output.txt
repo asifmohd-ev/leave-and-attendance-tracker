@@ -1,0 +1,19 @@
+app/login/page.tsx(5,44): error TS2307: Cannot find module 'firebase/auth' or its corresponding type declarations.
+app/users/page.tsx(5,31): error TS2307: Cannot find module 'firebase/app' or its corresponding type declarations.
+app/users/page.tsx(6,72): error TS2307: Cannot find module 'firebase/auth' or its corresponding type declarations.
+app/users/page.tsx(7,64): error TS2307: Cannot find module 'firebase/firestore' or its corresponding type declarations.
+app/users/page.tsx(32,63): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+app/users/page.tsx(33,41): error TS7006: Parameter 'd' implicitly has an 'any' type.
+components/Sidebar.tsx(8,25): error TS2307: Cannot find module 'firebase/auth' or its corresponding type declarations.
+lib/firebase.ts(1,48): error TS2307: Cannot find module 'firebase/app' or its corresponding type declarations.
+lib/firebase.ts(2,30): error TS2307: Cannot find module 'firebase/firestore' or its corresponding type declarations.
+lib/firebase.ts(3,25): error TS2307: Cannot find module 'firebase/auth' or its corresponding type declarations.
+lib/store.ts(3,58): error TS2307: Cannot find module 'firebase/auth' or its corresponding type declarations.
+lib/store.ts(11,8): error TS2307: Cannot find module 'firebase/firestore' or its corresponding type declarations.
+lib/store.ts(79,49): error TS7006: Parameter 'user' implicitly has an 'any' type.
+lib/store.ts(84,69): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+lib/store.ts(85,47): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+lib/store.ts(90,71): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+lib/store.ts(91,48): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+lib/store.ts(96,63): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+lib/store.ts(97,44): error TS7006: Parameter 'doc' implicitly has an 'any' type.

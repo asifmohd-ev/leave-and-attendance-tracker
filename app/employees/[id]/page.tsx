@@ -4,7 +4,10 @@ import { useStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
-import { ArrowLeft, CalendarOff, UserCheck, ShieldAlert, BadgeInfo, BarChart3, Clock } from "lucide-react";
+import { ArrowLeft, CalendarOff, UserCheck, ShieldAlert, BadgeInfo, BarChart3, Clock, Download, Table } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import Link from "next/link";
 
 export default function EmployeeProfilePage() {
@@ -55,14 +58,110 @@ export default function EmployeeProfilePage() {
     else totalSick += diffDays;
   });
 
+  const generateExcel = () => {
+    const records: any[] = [];
+    const empAtts = attendance.filter(a => a.employeeId === id && a.checkIn);
+    empAtts.forEach(a => records.push({ Date: a.date, Type: 'Attendance', Details: `IN: ${a.checkIn} ${a.checkOut ? `OUT: ${a.checkOut}` : ''}` }));
+    
+    allTimeLeaves.forEach(l => {
+      const start = new Date(l.startDate);
+      const end = new Date(l.endDate);
+      eachDayOfInterval({ start, end }).forEach(d => {
+        records.push({ Date: format(d, 'yyyy-MM-dd'), Type: l.type + ' Leave', Details: 'Full Day' });
+      });
+    });
+
+    records.sort((a,b) => new Date(a.Date).getTime() - new Date(b.Date).getTime());
+
+    const wb = XLSX.utils.book_new();
+    const sumData = [
+      [`Elevate Ventures - ${employee.name} Profile`],
+      ['Total Active Days', empAtts.length.toString()],
+      ['Total Annual Leave', totalAnnual.toString()],
+      ['Remaining Annual Leave', (28 - totalAnnual).toString()],
+      ['Total Sick Leave', totalSick.toString()],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Profile Summary");
+
+    const detailsData = [['Date', 'Type', 'Details']];
+    records.forEach(r => detailsData.push([r.Date, r.Type, r.Details]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailsData), "Detailed Logs");
+
+    XLSX.writeFile(wb, `Profile_${employee.name.replace(/\s+/g, '_')}.xlsx`);
+  };
+
+  const generatePDF = async () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    doc.setFillColor(13, 148, 136);
+    doc.rect(0, 0, pageWidth, 40, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(`PROFILE: ${employee.name.toUpperCase()}`, 15, 25);
+    
+    let currentY = 55;
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(14);
+    doc.text("PERFORMANCE SUMMARY", 15, currentY);
+    
+    currentY += 10;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    
+    const empAtts = attendance.filter(a => a.employeeId === id && a.checkIn);
+    doc.text(`Active Days: ${empAtts.length}`, 15, currentY); currentY += 6;
+    doc.text(`Annual Leaves Taken: ${totalAnnual} / 28 (Remaining: ${28 - totalAnnual})`, 15, currentY); currentY += 6;
+    doc.text(`Sick Leaves: ${totalSick}`, 15, currentY); currentY += 15;
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("ACTIVITY LOGS", 15, currentY);
+
+    const records: any[] = [];
+    empAtts.forEach(a => records.push([a.date, 'Attendance', `IN: ${a.checkIn} ${a.checkOut ? `OUT: ${a.checkOut}` : ''}` ]));
+    
+    allTimeLeaves.forEach(l => {
+      const start = new Date(l.startDate);
+      const end = new Date(l.endDate);
+      eachDayOfInterval({ start, end }).forEach(d => {
+        records.push([format(d, 'yyyy-MM-dd'), l.type + ' Leave', 'Full Day']);
+      });
+    });
+
+    records.sort((a,b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+
+    autoTable(doc, {
+      startY: currentY + 5,
+      head: [['DATE', 'TYPE', 'DETAILS']],
+      body: records,
+      theme: 'grid',
+      headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', lineWidth: 0.1, lineColor: [226, 232, 240] },
+      styles: { font: 'helvetica', fontSize: 8, textColor: [51, 65, 85], cellPadding: 3 },
+      alternateRowStyles: { fillColor: [252, 253, 254] }
+    });
+
+    doc.save(`Profile_${employee.name.replace(/\s+/g, '_')}.pdf`);
+  };
+
   return (
     <div className="space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
       
-      <div className="flex items-center gap-6 mb-4">
-        <Link href="/employees" className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:border-teal-200 transition-all shadow-sm group">
-          <ArrowLeft size={20} strokeWidth={2.5} className="transition-transform group-hover:-translate-x-0.5" />
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Employee Profile</h1>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-6">
+          <Link href="/employees" className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:border-teal-200 transition-all shadow-sm group">
+            <ArrowLeft size={20} strokeWidth={2.5} className="transition-transform group-hover:-translate-x-0.5" />
+          </Link>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Employee Profile</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={generateExcel} className="hidden sm:flex px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:text-teal-600 hover:border-teal-200 rounded-xl items-center justify-center gap-2 transition-all shadow-sm font-bold text-xs uppercase tracking-wider group" title="Export Excel">
+            <Table size={16} strokeWidth={2.5} /> Excel
+          </button>
+          <button onClick={generatePDF} className="flex px-4 py-2 bg-teal-600 text-white hover:bg-teal-700 rounded-xl items-center justify-center gap-2 transition-all shadow-md shadow-teal-100 font-bold text-xs uppercase tracking-wider" title="Export PDF">
+            <Download size={16} strokeWidth={2.5} /> PDF
+          </button>
+        </div>
       </div>
 
       {/* Profile Header */}
@@ -117,7 +216,13 @@ export default function EmployeeProfilePage() {
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Annual Leaves</p>
             <CalendarOff size={20} strokeWidth={2.5} className="text-amber-500" />
           </div>
-          <p className="text-4xl font-bold text-slate-900 mt-8 tabular-nums">{totalAnnual}</p>
+          <div className="mt-8 flex flex-col gap-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold text-slate-900 tabular-nums">{totalAnnual}</span>
+              <span className="text-sm font-bold text-slate-300">/ 28</span>
+            </div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mt-1">{28 - totalAnnual} days remaining</p>
+          </div>
         </div>
 
         <div className="bg-white p-7 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-rose-400 transition-colors">
