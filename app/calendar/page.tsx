@@ -3,6 +3,7 @@
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, isWithinInterval, parseISO } from "date-fns";
+import { isBusinessDay } from "@/lib/dateUtils";
 import { ChevronLeft, ChevronRight, UserCheck, CalendarOff, ShieldAlert, CircleDashed } from "lucide-react";
 
 export default function CalendarPage() {
@@ -23,6 +24,7 @@ export default function CalendarPage() {
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   
   const isLeaveActive = (l: any, targetDateStr: string) => {
+    if (!isBusinessDay(parseISO(targetDateStr))) return false;
     const start = l.startDate || l.date;
     const end = l.endDate || start;
     if (!start) return false;

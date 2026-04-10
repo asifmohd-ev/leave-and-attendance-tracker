@@ -4,6 +4,7 @@ import { useStore } from "@/lib/store";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { format, isWithinInterval, parseISO, eachDayOfInterval } from "date-fns";
+import { isBusinessDay } from "@/lib/dateUtils";
 import { Shield, ArrowLeft, Printer, Share2 } from "lucide-react";
 import Link from "next/link";
 
@@ -63,7 +64,7 @@ function ReportViewerContent() {
         if (!start) return;
         eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
           const dStr = format(d, 'yyyy-MM-dd');
-          if (isDateInRange(dStr)) anns.push(dStr);
+          if (isDateInRange(dStr) && isBusinessDay(d)) anns.push(dStr);
         });
       });
 
@@ -74,7 +75,7 @@ function ReportViewerContent() {
         if (!start) return;
         eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
           const dStr = format(d, 'yyyy-MM-dd');
-          if (isDateInRange(dStr)) sicks.push(dStr);
+          if (isDateInRange(dStr) && isBusinessDay(d)) sicks.push(dStr);
         });
       });
 

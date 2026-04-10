@@ -3,6 +3,7 @@
 import { useStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { format, isWithinInterval, parseISO } from "date-fns";
+import { isBusinessDay } from "@/lib/dateUtils";
 import { 
   Users, 
   UserCheck, 
@@ -41,6 +42,7 @@ export default function Dashboard() {
   }
 
   const isLeaveActive = (l: any, targetStr: string) => {
+    if (!isBusinessDay(parseISO(targetStr))) return false;
     const start = l.startDate || l.date;
     const end = l.endDate || start;
     if (!start) return false;

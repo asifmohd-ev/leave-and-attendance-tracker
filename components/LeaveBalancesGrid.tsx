@@ -2,6 +2,7 @@
 
 import { useStore } from "@/lib/store";
 import { eachDayOfInterval, getYear } from "date-fns";
+import { isBusinessDay, ANNUAL_LEAVE_LIMIT } from "@/lib/dateUtils";
 import { CalendarOff, BadgeAlert } from "lucide-react";
 
 interface Props {
@@ -26,7 +27,7 @@ export default function LeaveBalancesGrid({ timeHorizon = "current_year" }: Prop
       try {
         const days = eachDayOfInterval({ start, end });
         days.forEach(d => {
-          if (timeHorizon === "all_time" || getYear(d) === currentYear) {
+          if ((timeHorizon === "all_time" || getYear(d) === currentYear) && isBusinessDay(d)) {
             if (l.type === 'Annual') annualTaken += 1;
             else sickTaken += 1;
           }
@@ -38,7 +39,7 @@ export default function LeaveBalancesGrid({ timeHorizon = "current_year" }: Prop
 
     return {
       emp,
-      annualTaken: Math.min(annualTaken, 28), // Safe limit bounds
+      annualTaken: Math.min(annualTaken, ANNUAL_LEAVE_LIMIT), // Safe limit bounds
       sickTaken
     };
   });
@@ -49,8 +50,8 @@ export default function LeaveBalancesGrid({ timeHorizon = "current_year" }: Prop
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full mt-2">
       {data.map((item) => {
         const { emp, annualTaken, sickTaken } = item;
-        const remaining = Math.max(0, 28 - annualTaken);
-        const percent = (annualTaken / 28) * 100;
+        const remaining = Math.max(0, ANNUAL_LEAVE_LIMIT - annualTaken);
+        const percent = (annualTaken / ANNUAL_LEAVE_LIMIT) * 100;
 
         return (
           <div key={emp.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-teal-300 transition-all overflow-hidden group flex flex-col">
@@ -75,7 +76,7 @@ export default function LeaveBalancesGrid({ timeHorizon = "current_year" }: Prop
                   </span>
                   <div className="text-right">
                     <span className="font-bold text-slate-900 text-sm">{annualTaken}</span>
-                    <span className="text-xs font-bold text-slate-400"> / 28</span>
+                    <span className="text-xs font-bold text-slate-400"> / {ANNUAL_LEAVE_LIMIT}</span>
                   </div>
                 </div>
                 {/* Advanced Progress Visualizer */}

@@ -12,6 +12,7 @@ import {
   Legend
 } from "recharts";
 import { eachDayOfInterval, getYear } from "date-fns";
+import { isBusinessDay, ANNUAL_LEAVE_LIMIT } from "@/lib/dateUtils";
 import { BarChart3 } from "lucide-react";
 
 interface Props {
@@ -36,7 +37,7 @@ export default function AnnualLeaveChart({ timeHorizon = "current_year" }: Props
       try {
         const days = eachDayOfInterval({ start, end });
         days.forEach(d => {
-          if (timeHorizon === "all_time" || getYear(d) === currentYear) {
+          if ((timeHorizon === "all_time" || getYear(d) === currentYear) && isBusinessDay(d)) {
             taken += 1;
           }
         });
@@ -47,8 +48,8 @@ export default function AnnualLeaveChart({ timeHorizon = "current_year" }: Props
 
     return {
       name: emp.name.split(" ")[0], // Keep name short for X-axis
-      taken: Math.min(taken, 28), // Cap visualization safely
-      remaining: Math.max(0, 28 - taken)
+      taken: Math.min(taken, ANNUAL_LEAVE_LIMIT), // Cap visualization safely
+      remaining: Math.max(0, ANNUAL_LEAVE_LIMIT - taken)
     };
   });
 
@@ -67,7 +68,7 @@ export default function AnnualLeaveChart({ timeHorizon = "current_year" }: Props
         <div>
           <h3 className="text-sm font-bold text-slate-800 tracking-tight">Annual Leave Distribution</h3>
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-1">
-             {timeHorizon === "all_time" ? "Whole Data (All Time)" : `Current Year (${currentYear})`} | 28 Day Limit
+             {timeHorizon === "all_time" ? "Whole Data (All Time)" : `Current Year (${currentYear})`} | {ANNUAL_LEAVE_LIMIT} Day Limit
           </p>
         </div>
         <BarChart3 size={20} strokeWidth={2.5} className="text-teal-600" />
@@ -85,7 +86,7 @@ export default function AnnualLeaveChart({ timeHorizon = "current_year" }: Props
               dy={15}
             />
             <YAxis 
-              domain={[0, 28]} 
+              domain={[0, ANNUAL_LEAVE_LIMIT]} 
               axisLine={false} 
               tickLine={false} 
               tick={{ fill: "#94A3B8", fontSize: 11, fontWeight: 700 }} 

@@ -3,6 +3,7 @@
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, isWithinInterval, parseISO, eachDayOfInterval } from "date-fns";
+import { isBusinessDay } from "@/lib/dateUtils";
 import { Calendar, Users, Settings2, Download, CheckSquare, Table, Zap, Share2, Check } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -72,7 +73,7 @@ export default function ExportPage() {
         if (!start) return;
         eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
           const dStr = format(d, 'yyyy-MM-dd');
-          if (isDateInRange(dStr)) anns.push(dStr);
+          if (isDateInRange(dStr) && isBusinessDay(d)) anns.push(dStr);
         });
       });
 
@@ -83,7 +84,7 @@ export default function ExportPage() {
         if (!start) return;
         eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
           const dStr = format(d, 'yyyy-MM-dd');
-          if (isDateInRange(dStr)) sicks.push(dStr);
+          if (isDateInRange(dStr) && isBusinessDay(d)) sicks.push(dStr);
         });
       });
 

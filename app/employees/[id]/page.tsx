@@ -4,6 +4,7 @@ import { useStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
+import { isBusinessDay, ANNUAL_LEAVE_LIMIT } from "@/lib/dateUtils";
 import { ArrowLeft, CalendarOff, UserCheck, ShieldAlert, BadgeInfo, BarChart3, Clock, Download, Table } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -52,10 +53,19 @@ export default function EmployeeProfilePage() {
   let totalAnnual = 0;
   let totalSick = 0;
   allTimeLeaves.forEach(l => {
-    const diffTime = Math.abs(new Date(l.endDate).getTime() - new Date(l.startDate).getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    if (l.type === 'Annual') totalAnnual += diffDays;
-    else totalSick += diffDays;
+    const start = new Date(l.startDate);
+    const end = new Date(l.endDate);
+    try {
+      const days = eachDayOfInterval({ start, end });
+      days.forEach(d => {
+        if (isBusinessDay(d)) {
+          if (l.type === 'Annual') totalAnnual += 1;
+          else totalSick += 1;
+        }
+      });
+    } catch (e) {
+      // Fallback
+    }
   });
 
   const generateExcel = () => {
@@ -67,7 +77,9 @@ export default function EmployeeProfilePage() {
       const start = new Date(l.startDate);
       const end = new Date(l.endDate);
       eachDayOfInterval({ start, end }).forEach(d => {
-        records.push({ Date: format(d, 'yyyy-MM-dd'), Type: l.type + ' Leave', Details: 'Full Day' });
+        if (isBusinessDay(d)) {
+          records.push({ Date: format(d, 'yyyy-MM-dd'), Type: l.type + ' Leave', Details: 'Full Day' });
+        }
       });
     });
 
@@ -78,7 +90,7 @@ export default function EmployeeProfilePage() {
       [`Elevate Ventures - ${employee.name} Profile`],
       ['Total Active Days', empAtts.length.toString()],
       ['Total Annual Leave', totalAnnual.toString()],
-      ['Remaining Annual Leave', (28 - totalAnnual).toString()],
+      ['Remaining Annual Leave', (ANNUAL_LEAVE_LIMIT - totalAnnual).toString()],
       ['Total Sick Leave', totalSick.toString()],
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Profile Summary");
@@ -111,7 +123,7 @@ export default function EmployeeProfilePage() {
     
     const empAtts = attendance.filter(a => a.employeeId === id && a.checkIn);
     doc.text(`Active Days: ${empAtts.length}`, 15, currentY); currentY += 6;
-    doc.text(`Annual Leaves Taken: ${totalAnnual} / 28 (Remaining: ${28 - totalAnnual})`, 15, currentY); currentY += 6;
+    doc.text(`Annual Leaves Taken: ${totalAnnual} / ${ANNUAL_LEAVE_LIMIT} (Remaining: ${ANNUAL_LEAVE_LIMIT - totalAnnual})`, 15, currentY); currentY += 6;
     doc.text(`Sick Leaves: ${totalSick}`, 15, currentY); currentY += 15;
 
     doc.setFontSize(14);
@@ -125,7 +137,9 @@ export default function EmployeeProfilePage() {
       const start = new Date(l.startDate);
       const end = new Date(l.endDate);
       eachDayOfInterval({ start, end }).forEach(d => {
-        records.push([format(d, 'yyyy-MM-dd'), l.type + ' Leave', 'Full Day']);
+        if (isBusinessDay(d)) {
+          records.push([format(d, 'yyyy-MM-dd'), l.type + ' Leave', 'Full Day']);
+        }
       });
     });
 
@@ -219,9 +233,9 @@ export default function EmployeeProfilePage() {
           <div className="mt-8 flex flex-col gap-1">
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-bold text-slate-900 tabular-nums">{totalAnnual}</span>
-              <span className="text-sm font-bold text-slate-300">/ 28</span>
+              <span className="text-sm font-bold text-slate-300">/ {ANNUAL_LEAVE_LIMIT}</span>
             </div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mt-1">{28 - totalAnnual} days remaining</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mt-1">{ANNUAL_LEAVE_LIMIT - totalAnnual} days remaining</p>
           </div>
         </div>
 
