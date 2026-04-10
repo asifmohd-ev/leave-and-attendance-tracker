@@ -59,6 +59,10 @@ interface AppState {
   
   // Initializer
   initRealtimeSync: () => () => void;
+
+  // Report Links
+  saveReportConfig: (config: any) => Promise<string>;
+  getReportConfig: (id: string) => Promise<any | null>;
 }
 
 export const useStore = create<AppState>()((set, get) => ({
@@ -176,5 +180,32 @@ export const useStore = create<AppState>()((set, get) => ({
   
   removeLeave: async (id) => {
     await deleteDoc(doc(db, 'leaves', id));
+  },
+
+  saveReportConfig: async (config) => {
+    // Generate a short ID (6 chars)
+    const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let shortId = '';
+    for (let i = 0; i < 6; i++) {
+      shortId += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+    }
+
+    await setDoc(doc(db, 'short_links', shortId), {
+      config,
+      createdAt: new Date().toISOString()
+    });
+
+    return shortId;
+  },
+
+  getReportConfig: async (id) => {
+    const { getDoc } = await import('firebase/firestore');
+    const docRef = doc(db, 'short_links', id);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data().config;
+    }
+    return null;
   }
 }));

@@ -11,7 +11,7 @@ import * as XLSX from "xlsx";
 
 export default function ExportPage() {
   const [mounted, setMounted] = useState(false);
-  const { employees, attendance, leaves } = useStore();
+  const { employees, attendance, leaves, saveReportConfig } = useStore();
   const [copied, setCopied] = useState(false);
   
   const [fromDate, setFromDate] = useState("");
@@ -124,13 +124,36 @@ export default function ExportPage() {
   };
 
   const copyLink = async () => {
-    const link = getShareLink();
+    const config = {
+      from: fromDate,
+      to: toDate,
+      emps: selectedEmps,
+      att: incAttendance,
+      ann: incAnnual,
+      sick: incSick,
+      sum: incSummary,
+    };
+
     try {
-      await navigator.clipboard.writeText(link);
+      const sid = await saveReportConfig(config);
+      const shortLink = `${window.location.origin}/report/view?sid=${sid}`;
+      
+      const rangeLabel = (fromDate && toDate) 
+        ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`) 
+        : "All Records";
+      
+      const clipboardText = `HR Personnel Report (${rangeLabel}): ${shortLink}`;
+      
+      await navigator.clipboard.writeText(clipboardText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error("Failed to copy link", err);
+      console.error("Failed to generate short link", err);
+      // Fallback to old long link if Firestore fails
+      const longLink = getShareLink();
+      await navigator.clipboard.writeText(longLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 

@@ -10,27 +10,59 @@ import Link from "next/link";
 
 function ReportViewerContent() {
   const searchParams = useSearchParams();
-  const { employees, attendance, leaves, initRealtimeSync } = useStore();
+  const { employees, attendance, leaves, initRealtimeSync, getReportConfig } = useStore();
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Extract params
-  const fromDate = searchParams.get("from") || "";
-  const toDate = searchParams.get("to") || "";
-  const selectedEmpsStr = searchParams.get("emps") || "";
-  const incAttendance = searchParams.get("att") === "true";
-  const incAnnual = searchParams.get("ann") === "true";
-  const incSick = searchParams.get("sick") === "true";
-  const incSummary = searchParams.get("sum") === "true";
-
-  const selectedEmps = selectedEmpsStr ? selectedEmpsStr.split(",") : [];
+  // Filter state
+  const [config, setConfig] = useState<{
+    from: string;
+    to: string;
+    emps: string[];
+    att: boolean;
+    ann: boolean;
+    sick: boolean;
+    sum: boolean;
+  }>({
+    from: searchParams.get("from") || "",
+    to: searchParams.get("to") || "",
+    emps: (searchParams.get("emps") || "").split(",").filter(Boolean),
+    att: searchParams.get("att") === "true",
+    ann: searchParams.get("ann") === "true",
+    sick: searchParams.get("sick") === "true",
+    sum: searchParams.get("sum") === "true",
+  });
 
   useEffect(() => {
     setMounted(true);
     const unsub = initRealtimeSync();
-    return () => unsub();
-  }, [initRealtimeSync]);
 
-  if (!mounted) return null;
+    const fetchShortConfig = async () => {
+      const sid = searchParams.get("sid");
+      if (sid) {
+        setLoading(true);
+        const fetchedConfig = await getReportConfig(sid);
+        if (fetchedConfig) {
+          setConfig(fetchedConfig);
+        }
+        setLoading(false);
+      }
+    };
+
+    fetchShortConfig();
+    return () => unsub();
+  }, [initRealtimeSync, searchParams, getReportConfig]);
+
+  if (!mounted || loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-6">
+        <div className="w-16 h-16 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin" />
+        <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] animate-pulse">Decrypting Workforce Intelligence...</p>
+      </div>
+    );
+  }
+
+  const { from: fromDate, to: toDate, emps: selectedEmps, att: incAttendance, ann: incAnnual, sick: incSick, sum: incSummary } = config;
 
   const isDateInRange = (d: string) => {
     if (!fromDate && !toDate) return true;
