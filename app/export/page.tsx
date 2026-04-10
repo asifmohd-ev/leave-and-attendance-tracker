@@ -3,7 +3,7 @@
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, isWithinInterval, parseISO, eachDayOfInterval } from "date-fns";
-import { Calendar, Users, Settings2, Download, CheckSquare, Table, Zap } from "lucide-react";
+import { Calendar, Users, Settings2, Download, CheckSquare, Table, Zap, Share2, Check } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -11,6 +11,7 @@ import * as XLSX from "xlsx";
 export default function ExportPage() {
   const [mounted, setMounted] = useState(false);
   const { employees, attendance, leaves } = useStore();
+  const [copied, setCopied] = useState(false);
   
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -106,6 +107,30 @@ export default function ExportPage() {
     if (fromDate && !toDate) return `Since_${fromDate}`;
     if (!fromDate && toDate) return `Until_${toDate}`;
     return fromDate === toDate ? `Date_${fromDate}` : `Range_${fromDate}_to_${toDate}`;
+  };
+
+  const getShareLink = () => {
+    const params = new URLSearchParams({
+      from: fromDate,
+      to: toDate,
+      emps: selectedEmps.join(','),
+      att: incAttendance.toString(),
+      ann: incAnnual.toString(),
+      sick: incSick.toString(),
+      sum: incSummary.toString(),
+    });
+    return `${window.location.origin}/report/view?${params.toString()}`;
+  };
+
+  const copyLink = async () => {
+    const link = getShareLink();
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link", err);
+    }
   };
 
   const generatePDF = async () => {
@@ -308,6 +333,15 @@ export default function ExportPage() {
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-4">
+          <button 
+            onClick={copyLink}
+            className={`w-full sm:w-auto px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm border ${
+              copied ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-200 hover:border-teal-200 text-slate-700 hover:text-teal-600'
+            }`}
+          >
+            {copied ? <Check size={18} strokeWidth={2.5}/> : <Share2 size={18} strokeWidth={2.5}/>}
+            {copied ? "Link Copied" : "Get Share Link"}
+          </button>
           <button 
             onClick={generateExcel}
             className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm"
