@@ -2,7 +2,7 @@
 
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db, app } from "@/lib/firebase";
@@ -40,9 +40,13 @@ export default function UsersPage() {
     setLoading(true);
     setError("");
 
+    // Safely get or create the secondary app — avoids "already exists" error
+    const secondaryApp = getApps().find(a => a.name === "SecondaryApp") 
+      ? getApp("SecondaryApp") 
+      : initializeApp(app.options, "SecondaryApp");
+
     try {
       // Use secondary app trick to create a user without signing out the current admin
-      const secondaryApp = initializeApp(app.options, "SecondaryApp");
       const secondaryAuth = getAuth(secondaryApp);
 
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
@@ -66,6 +70,8 @@ export default function UsersPage() {
     } catch (err: any) {
       setError(err.message || "Failed to create user.");
     } finally {
+      // Always clean up the secondary app instance to prevent stale references
+      await deleteApp(secondaryApp).catch(() => {});
       setLoading(false);
     }
   };

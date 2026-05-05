@@ -10,9 +10,10 @@ import Link from "next/link";
 
 function ReportViewerContent() {
   const searchParams = useSearchParams();
-  const { employees, attendance, leaves, initRealtimeSync, getReportConfig } = useStore();
+  const { user, employees: storeEmps, attendance: storeAtts, leaves: storeLeaves, initRealtimeSync, getReportConfig } = useStore();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [snapshot, setSnapshot] = useState<{ employees: any[], attendance: any[], leaves: any[] } | null>(null);
 
   // Filter state
   const [config, setConfig] = useState<{
@@ -35,23 +36,34 @@ function ReportViewerContent() {
 
   useEffect(() => {
     setMounted(true);
-    const unsub = initRealtimeSync();
+    
+    // Only sync if user is logged in
+    let unsubAuth: (() => void) | undefined;
+    if (user) {
+        unsubAuth = initRealtimeSync();
+    }
 
     const fetchShortConfig = async () => {
       const sid = searchParams.get("sid");
       if (sid) {
         setLoading(true);
-        const fetchedConfig = await getReportConfig(sid);
-        if (fetchedConfig) {
-          setConfig(fetchedConfig);
+        const result = await getReportConfig(sid);
+        if (result) {
+          if (result.config) setConfig(result.config);
+          if (result.snapshot) setSnapshot(result.snapshot);
         }
         setLoading(false);
       }
     };
 
     fetchShortConfig();
-    return () => unsub();
-  }, [initRealtimeSync, searchParams, getReportConfig]);
+    return () => unsubAuth?.();
+  }, [initRealtimeSync, searchParams, getReportConfig, user]);
+
+  // Determine data source: snapshot or live store
+  const employees = snapshot?.employees || storeEmps;
+  const attendance = snapshot?.attendance || storeAtts;
+  const leaves = snapshot?.leaves || storeLeaves;
 
   if (!mounted || loading) {
     return (
@@ -132,9 +144,15 @@ function ReportViewerContent() {
     <div className="min-h-screen bg-white print:p-0 p-4 md:p-8">
       {/* Tool Bar - Hidden in print */}
       <div className="max-w-5xl mx-auto mb-8 flex items-center justify-between print:hidden">
-        <Link href="/export" className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold text-xs uppercase tracking-widest transition-all">
-          <ArrowLeft size={16} /> Back to Export
-        </Link>
+        {user ? (
+          <Link href="/export" className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold text-xs uppercase tracking-widest transition-all">
+            <ArrowLeft size={16} /> Back to Export
+          </Link>
+        ) : (
+          <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+            <Shield size={14} className="text-teal-600" /> Standalone Report Mode
+          </div>
+        )}
         <div className="flex gap-4">
             <button 
                 onClick={() => window.print()}

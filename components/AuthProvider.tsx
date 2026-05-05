@@ -15,14 +15,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
+  const isPublicPath = pathname === "/login" || pathname === "/report/view";
+
   useEffect(() => {
     if (!mounted) return;
-    if (authLoaded && !user && pathname !== "/login") {
+    if (authLoaded && !user && !isPublicPath) {
       router.push("/login");
     } else if (authLoaded && user && pathname === "/login") {
       router.push("/");
     }
-  }, [user, authLoaded, pathname, router, mounted]);
+  }, [user, authLoaded, pathname, router, mounted, isPublicPath]);
 
   if (!mounted) return null;
 
@@ -34,10 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If user is on the login page but authenticated, or on a protected page but unauthenticated,
-  // we may still be in the middle of a route transition. We only render children
-  // in the "correct" state.
-  if (!user && pathname !== "/login") {
+  if (!user && !isPublicPath) {
     return null;
   }
   if (user && pathname === "/login") {

@@ -61,7 +61,7 @@ interface AppState {
   initRealtimeSync: () => () => void;
 
   // Report Links
-  saveReportConfig: (config: any) => Promise<string>;
+  saveReportConfig: (config: any, snapshot?: any) => Promise<string>;
   getReportConfig: (id: string) => Promise<any | null>;
 }
 
@@ -182,7 +182,7 @@ export const useStore = create<AppState>()((set, get) => ({
     await deleteDoc(doc(db, 'leaves', id));
   },
 
-  saveReportConfig: async (config) => {
+  saveReportConfig: async (config, snapshot) => {
     // Generate a short ID (6 chars)
     const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     let shortId = '';
@@ -192,6 +192,7 @@ export const useStore = create<AppState>()((set, get) => ({
 
     await setDoc(doc(db, 'short_links', shortId), {
       config,
+      snapshot: snapshot || null,
       createdAt: new Date().toISOString()
     });
 
@@ -204,7 +205,7 @@ export const useStore = create<AppState>()((set, get) => ({
     const docSnap = await getDoc(docRef);
     
     if (docSnap.exists()) {
-      return docSnap.data().config;
+      return docSnap.data();
     }
     return null;
   }

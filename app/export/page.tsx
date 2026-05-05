@@ -134,8 +134,15 @@ export default function ExportPage() {
       sum: incSummary,
     };
 
+    // Prepare snapshot data
+    const snapshot = {
+        employees: employees.filter(e => selectedEmps.includes(e.id)),
+        attendance: attendance.filter(a => selectedEmps.includes(a.employeeId)),
+        leaves: leaves.filter(l => selectedEmps.includes(l.employeeId)),
+    };
+
     try {
-      const sid = await saveReportConfig(config);
+      const sid = await saveReportConfig(config, snapshot);
       const shortLink = `${window.location.origin}/report/view?sid=${sid}`;
       
       const rangeLabel = (fromDate && toDate) 
