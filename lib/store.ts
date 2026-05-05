@@ -79,34 +79,54 @@ export const useStore = create<AppState>()((set, get) => ({
   setLeaves: (leaves) => set({ leaves }),
 
   initRealtimeSync: () => {
-    // Listen to Auth
+    let unsubEmployees: (() => void) | null = null;
+    let unsubAttendance: (() => void) | null = null;
+    let unsubLeaves: (() => void) | null = null;
+
+    const startCollectionListeners = () => {
+      // Listen to Employees
+      unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
+        const employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+        set({ employees: employeesData });
+      }, (err) => console.error('employees snapshot error:', err));
+
+      // Listen to Attendance
+      unsubAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
+        const attendanceData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Attendance));
+        set({ attendance: attendanceData });
+      }, (err) => console.error('attendance snapshot error:', err));
+
+      // Listen to Leaves
+      unsubLeaves = onSnapshot(collection(db, 'leaves'), (snapshot) => {
+        const leavesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Leave));
+        set({ leaves: leavesData });
+      }, (err) => console.error('leaves snapshot error:', err));
+    };
+
+    const stopCollectionListeners = () => {
+      unsubEmployees?.();
+      unsubAttendance?.();
+      unsubLeaves?.();
+      unsubEmployees = null;
+      unsubAttendance = null;
+      unsubLeaves = null;
+      // Clear data when logged out
+      set({ employees: [], attendance: [], leaves: [] });
+    };
+
+    // Only start Firestore listeners once auth is confirmed
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       set({ user, authLoaded: true });
-    });
-
-    // Listen to Employees
-    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
-      const employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
-      set({ employees: employeesData });
-    });
-
-    // Listen to Attendance
-    const unsubAttendance = onSnapshot(collection(db, 'attendance'), (snapshot) => {
-      const attendanceData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Attendance));
-      set({ attendance: attendanceData });
-    });
-
-    // Listen to Leaves
-    const unsubLeaves = onSnapshot(collection(db, 'leaves'), (snapshot) => {
-      const leavesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Leave));
-      set({ leaves: leavesData });
+      if (user) {
+        startCollectionListeners();
+      } else {
+        stopCollectionListeners();
+      }
     });
 
     return () => {
       unsubAuth();
-      unsubEmployees();
-      unsubAttendance();
-      unsubLeaves();
+      stopCollectionListeners();
     };
   },
   
