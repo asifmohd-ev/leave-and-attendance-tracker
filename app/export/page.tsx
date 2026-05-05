@@ -110,57 +110,135 @@ export default function ExportPage() {
     return fromDate === toDate ? `Date_${fromDate}` : `Range_${fromDate}_to_${toDate}`;
   };
 
-  const getShareLink = () => {
-    const params = new URLSearchParams({
-      from: fromDate,
-      to: toDate,
-      emps: selectedEmps.join(','),
-      att: incAttendance.toString(),
-      ann: incAnnual.toString(),
-      sick: incSick.toString(),
-      sum: incSummary.toString(),
-    });
-    return `${window.location.origin}/report/view?${params.toString()}`;
+  const generateReportHTML = () => {
+    const { records, globalAtt, globalAnn, globalSick, empCounts } = getFilteredData();
+    const rangeLabel = (fromDate && toDate)
+      ? (fromDate === toDate ? `Date: ${fromDate}` : `${fromDate} — ${toDate}`)
+      : "All Records";
+    const generatedAt = format(new Date(), 'MMM dd, yyyy HH:mm');
+    const totalEvents = globalAtt + globalAnn + globalSick;
+
+    const summaryRows = selectedEmps.map(empId => {
+      const emp = employees.find(e => e.id === empId);
+      if (!emp) return '';
+      const c = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
+      return `<tr><td>${emp.name}</td><td>${c.att}</td><td>${c.ann}</td><td>${c.sick}</td></tr>`;
+    }).join('');
+
+    const activityLogs = selectedEmps.map(empId => {
+      const emp = employees.find(e => e.id === empId);
+      if (!emp) return '';
+      const empRecs = records.filter(r => r.Emp === emp.name);
+      if (empRecs.length === 0) return '';
+      const rows = empRecs.map(r => {
+        const badge = r.Type.includes('Annual') ? 'badge-annual' : r.Type.includes('Sick') ? 'badge-sick' : 'badge-att';
+        return `<tr><td>${r.Date}</td><td><span class="badge ${badge}">${r.Type}</span></td><td>${r.Details}</td></tr>`;
+      }).join('');
+      return `<div class="emp-section"><div class="emp-header"><h3>${emp.name}</h3><span class="emp-id">ID: ${emp.id.slice(0,8)}</span></div><table><thead><tr><th>Date</th><th>Type</th><th>Details</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }).join('');
+
+    const barAtt = totalEvents > 0 ? `${(globalAtt/totalEvents*100).toFixed(1)}%` : '0%';
+    const barAnn = totalEvents > 0 ? `${(globalAnn/totalEvents*100).toFixed(1)}%` : '0%';
+    const barSick = totalEvents > 0 ? `${(globalSick/totalEvents*100).toFixed(1)}%` : '0%';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Elevate Ventures — Personnel Report</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#0f172a;padding:24px}
+.page{max-width:900px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 40px rgba(0,0,0,.08)}
+header{background:#0d9488;color:#fff;padding:40px 48px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px}
+.brand h1{font-size:28px;font-weight:900;letter-spacing:-1px}
+.brand p{font-size:11px;font-weight:700;opacity:.7;text-transform:uppercase;letter-spacing:.2em;margin-top:4px}
+.meta{text-align:right}
+.meta .range{font-size:18px;font-weight:700}
+.meta .gen{font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:.15em;margin-top:6px}
+.body{padding:40px 48px;display:flex;flex-direction:column;gap:40px}
+.section-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.25em;color:#94a3b8;text-align:center;padding:0 0 16px;display:flex;align-items:center;gap:12px}
+.section-title::before,.section-title::after{content:'';flex:1;height:1px;background:#f1f5f9}
+.bar-wrap{height:10px;border-radius:99px;overflow:hidden;display:flex;background:#f1f5f9;border:1px solid #e2e8f0}
+.bar-att{background:#14b8a6;height:100%}
+.bar-ann{background:#f59e0b;height:100%}
+.bar-sick{background:#f43f5e;height:100%}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:16px}
+.metric{display:flex;align-items:center;gap:10px}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot-att{background:#14b8a6}.dot-ann{background:#f59e0b}.dot-sick{background:#f43f5e}
+.metric-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#94a3b8}
+.metric-val{font-size:22px;font-weight:800;color:#0f172a}
+.metric-unit{font-size:11px;color:#94a3b8;font-weight:500}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead tr{border-bottom:2px solid #0f172a}
+thead th{text-align:left;padding:12px 8px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.15em;color:#94a3b8}
+tbody tr{border-bottom:1px solid #f1f5f9}
+tbody td{padding:14px 8px;color:#334155;font-weight:500}
+.emp-section{margin-bottom:32px}
+.emp-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;padding-left:16px;border-left:4px solid #0d9488}
+.emp-header h3{font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-.5px}
+.emp-id{font-size:9px;font-weight:800;color:#cbd5e1;text-transform:uppercase;letter-spacing:.2em}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;border:1px solid}
+.badge-annual{background:#fefce8;border-color:#fde68a;color:#92400e}
+.badge-sick{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
+.badge-att{background:#f0fdfa;border-color:#99f6e4;color:#134e4a}
+footer{background:#f8fafc;border-top:1px solid #f1f5f9;padding:24px 48px;text-align:center;font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.15em}
+@media print{body{padding:0;background:#fff}.page{box-shadow:none;border-radius:0}}
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+<div class="brand"><h1>ELEVATE VENTURES</h1><p>Workforce Reporting Suite</p></div>
+<div class="meta"><div class="range">${rangeLabel}</div><div class="gen">Generated: ${generatedAt}</div></div>
+</header>
+<div class="body">
+${incSummary && selectedEmps.length > 0 ? `
+<section>
+<div class="section-title">Executive Metrics</div>
+${totalEvents > 0 ? `
+<div class="bar-wrap"><div class="bar-att" style="width:${barAtt}"></div><div class="bar-ann" style="width:${barAnn}"></div><div class="bar-sick" style="width:${barSick}"></div></div>
+<div class="metrics">
+<div class="metric"><div class="dot dot-att"></div><div><div class="metric-label">Active Presence</div><div class="metric-val">${globalAtt} <span class="metric-unit">days</span></div></div></div>
+<div class="metric"><div class="dot dot-ann"></div><div><div class="metric-label">Annual Leaves</div><div class="metric-val">${globalAnn} <span class="metric-unit">days</span></div></div></div>
+<div class="metric"><div class="dot dot-sick"></div><div><div class="metric-label">Sick/Emergency</div><div class="metric-val">${globalSick} <span class="metric-unit">days</span></div></div></div>
+</div>` : ''}
+<table style="margin-top:24px">
+<thead><tr><th>Employee Name</th><th>Active Days</th><th>Annual Leaves</th><th>Sick Leaves</th></tr></thead>
+<tbody>${summaryRows}</tbody>
+</table>
+</section>` : ''}
+${(incAttendance || incAnnual || incSick) && activityLogs ? `
+<section>
+<div class="section-title">Branded Activity Logs</div>
+${activityLogs}
+</section>` : ''}
+${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5e1;font-weight:700;text-transform:uppercase;letter-spacing:.2em;border:3px dashed #f1f5f9;border-radius:12px">No records found for this configuration</div>' : ''}
+</div>
+<footer>Elevate Ventures • Operational Excellence Protocol 2026</footer>
+</div>
+</body>
+</html>`;
   };
 
   const copyLink = async () => {
-    const config = {
-      from: fromDate,
-      to: toDate,
-      emps: selectedEmps,
-      att: incAttendance,
-      ann: incAnnual,
-      sick: incSick,
-      sum: incSummary,
-    };
-
-    // Prepare snapshot data
-    const snapshot = {
-        employees: employees.filter(e => selectedEmps.includes(e.id)),
-        attendance: attendance.filter(a => selectedEmps.includes(a.employeeId)),
-        leaves: leaves.filter(l => selectedEmps.includes(l.employeeId)),
-    };
-
     try {
-      const sid = await saveReportConfig(config, snapshot);
-      const shortLink = `${window.location.origin}/report/view?sid=${sid}`;
-      
-      const rangeLabel = (fromDate && toDate) 
-        ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`) 
+      const htmlContent = generateReportHTML();
+      const rangeLabel = (fromDate && toDate)
+        ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`)
         : "All Records";
-      
+
+      const sid = await saveReportConfig({ htmlContent, rangeLabel });
+      const shortLink = `${window.location.origin}/report/view?sid=${sid}`;
       const clipboardText = `HR Personnel Report (${rangeLabel}): ${shortLink}`;
-      
+
       await navigator.clipboard.writeText(clipboardText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error("Failed to generate short link", err);
-      // Fallback to old long link if Firestore fails
-      const longLink = getShareLink();
-      await navigator.clipboard.writeText(longLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      console.error("Failed to generate share link", err);
     }
   };
 
