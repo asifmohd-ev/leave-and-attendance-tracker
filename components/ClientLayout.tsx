@@ -12,6 +12,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   // Close sidebar on path change (mobile)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsSidebarOpen(false);
   }, [pathname]);
 

@@ -20,6 +20,7 @@ interface AttendanceChartProps {
 
 export default function AttendanceChart({ selectedDate = new Date(), viewMode = "daily" }: AttendanceChartProps) {
   const { attendance } = useStore();
+  const activeAttendance = attendance.filter(a => !a.deletedAt);
 
   let data;
 
@@ -34,7 +35,7 @@ export default function AttendanceChart({ selectedDate = new Date(), viewMode = 
       { name: "Sat", count: 0, fullDate: "All Time (Sat)" },
     ];
     
-    attendance.forEach(a => {
+    activeAttendance.forEach(a => {
       if (a.checkIn) {
         try {
           const d = new Date(a.date + "T12:00:00Z");
@@ -51,7 +52,7 @@ export default function AttendanceChart({ selectedDate = new Date(), viewMode = 
     data = Array.from({ length: 7 }, (_, i) => {
       const date = subDays(selectedDate, 6 - i);
       const dateStr = format(date, "yyyy-MM-dd");
-      const count = attendance.filter((a) => a.date === dateStr && a.checkIn).length;
+      const count = activeAttendance.filter((a) => a.date === dateStr && a.checkIn).length;
 
       return {
         name: format(date, "EEE"),

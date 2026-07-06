@@ -20,14 +20,15 @@ interface LeavePieChartProps {
 
 export default function LeavePieChart({ selectedDate = new Date(), viewMode = "daily" }: LeavePieChartProps) {
   const { leaves } = useStore();
+  const activeLeaves = leaves.filter(l => !l.deletedAt);
 
-  const normalize = (l: any) => ({
+  const normalize = (l: { startDate?: string; date?: string; endDate?: string; type?: string }) => ({
     ...l,
     startDate: l.startDate || l.date || new Date().toISOString(),
     endDate: l.endDate || l.date || new Date().toISOString(),
   });
 
-  const normalizedLeaves = leaves.map(normalize);
+  const normalizedLeaves = activeLeaves.map(normalize);
   const filteredLeaves = viewMode === "whole_data" 
     ? normalizedLeaves 
     : normalizedLeaves.filter((l) => isSameMonth(new Date(l.startDate), selectedDate) || isSameMonth(new Date(l.endDate), selectedDate));

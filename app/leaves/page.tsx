@@ -3,7 +3,8 @@
 import { useStore, LeaveType } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, eachDayOfInterval } from "date-fns";
-import { CalendarOff, Trash2, Zap, CircleDashed, AlertTriangle, Layers } from "lucide-react";
+import { CalendarOff, Trash2, Zap, CircleDashed, AlertTriangle } from "lucide-react";
+import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
 import AnnualLeaveChart from "@/components/AnnualLeaveChart";
 import LeaveBalancesGrid from "@/components/LeaveBalancesGrid";
 
@@ -17,7 +18,11 @@ export default function LeavesPage() {
   const [leaveType, setLeaveType] = useState<LeaveType>("Sick/Emergency");
   const [errorMsg, setErrorMsg] = useState("");
   const [timeHorizon, setTimeHorizon] = useState<"current_year" | "all_time">("current_year");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
+  const activeEmployees = employees.filter(e => !e.deletedAt);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   if (!mounted) return null;
@@ -56,12 +61,13 @@ export default function LeavesPage() {
   // Fallback to .date for old documents before the migration
   const normalizedLeaves = leaves.map(l => ({
     ...l,
-    startDate: l.startDate || (l as any).date || format(new Date(), 'yyyy-MM-dd'),
-    endDate: l.endDate || (l as any).date || format(new Date(), 'yyyy-MM-dd')
+    startDate: l.startDate || (l as { date?: string }).date || format(new Date(), 'yyyy-MM-dd'),
+    endDate: l.endDate || (l as { date?: string }).date || format(new Date(), 'yyyy-MM-dd')
   }));
 
   // we don't need complex grouping logic anymore because they are already range documents in the backend!
-  const groupedLeaves = [...normalizedLeaves].sort((a,b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+  const activeLeaves = normalizedLeaves.filter(l => !l.deletedAt);
+  const groupedLeaves = [...activeLeaves].sort((a,b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
 
   return (
     <div className="space-y-8 lg:space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
@@ -142,7 +148,7 @@ export default function LeavesPage() {
                     className="w-full px-5 py-3.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl focus:border-teal-400 focus:outline-none transition-all font-semibold appearance-none text-sm shadow-inner"
                   >
                     <option value="" disabled>Select Employee</option>
-                    {employees.map(emp => (
+                    {activeEmployees.map(emp => (
                       <option key={emp.id} value={emp.id}>{emp.name}</option>
                     ))}
                   </select>
@@ -228,14 +234,19 @@ export default function LeavesPage() {
                   if (!emp) return null;
                   
                   return (
-                    <div key={group.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-6 px-8 hover:bg-slate-50/80 transition-all gap-6 group">
+                    <div key={group.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-6 px-4 sm:px-8 hover:bg-slate-50/80 transition-all gap-4 sm:gap-6 group">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-slate-100 border-2 border-white text-slate-400 font-bold text-lg flex items-center justify-center shadow-sm rounded-full shrink-0 group-hover:scale-105 transition-transform">
-                          {emp.photoUrl ? <img src={emp.photoUrl} alt="" className="w-full h-full object-cover rounded-full"/> : emp.name.charAt(0)}
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-100 border-2 border-white text-slate-400 font-bold text-base sm:text-lg flex items-center justify-center shadow-sm rounded-full shrink-0 group-hover:scale-105 transition-transform">
+                          {emp.photoUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img src={emp.photoUrl} alt="" className="w-full h-full object-cover rounded-full"/>
+                          ) : (
+                            emp.name.charAt(0)
+                          )}
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-teal-600 transition-colors">{emp.name}</p>
-                          <p className="text-[11px] font-semibold text-slate-400 tabular-nums">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-teal-600 transition-colors truncate">{emp.name}</p>
+                          <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 tabular-nums">
                             {group.startDate === group.endDate 
                               ? format(new Date(group.startDate), 'EEEE, MMM dd, yyyy')
                               : `${format(new Date(group.startDate), 'MMM dd')} - ${format(new Date(group.endDate), 'MMM dd, yyyy')} (${eachDayOfInterval({start: new Date(group.startDate), end: new Date(group.endDate)}).length} days)`
@@ -244,7 +255,7 @@ export default function LeavesPage() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-between sm:justify-end gap-8 w-full sm:w-auto">
+                      <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-8 w-full sm:w-auto">
                         <span className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border shadow-sm ${
                           group.type === 'Annual' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500'
                         }`}>
@@ -252,8 +263,8 @@ export default function LeavesPage() {
                         </span>
                         
                         <button 
-                          onClick={() => removeLeave(group.id)}
-                          className="p-2.5 text-slate-400 border border-slate-100 hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 rounded-lg"
+                          onClick={() => setDeleteTarget({ id: group.id, name: emp.name })}
+                          className="p-2.5 text-slate-400 border border-slate-100 hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50 transition-all lg:opacity-0 group-hover:opacity-100 focus:opacity-100 rounded-lg"
                         >
                           <Trash2 size={16} strokeWidth={2.5} />
                         </button>
@@ -267,6 +278,13 @@ export default function LeavesPage() {
         </div>
 
       </div>
+      <ConfirmDeleteDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && removeLeave(deleteTarget.id)}
+        itemName={deleteTarget?.name || ""}
+        itemType="Leave"
+      />
     </div>
   );
 }

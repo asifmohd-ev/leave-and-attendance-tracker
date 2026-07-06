@@ -9,10 +9,15 @@ import { ChevronLeft, ChevronRight, UserCheck, CalendarOff, ShieldAlert, CircleD
 export default function CalendarPage() {
   const [mounted, setMounted] = useState(false);
   const { employees, attendance, leaves } = useStore();
+
+  const activeEmployees = employees.filter(e => !e.deletedAt);
+  const activeAttendance = attendance.filter(a => !a.deletedAt);
+  const activeLeaves = leaves.filter(l => !l.deletedAt);
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   if (!mounted) return null;
@@ -36,14 +41,14 @@ export default function CalendarPage() {
   };
 
   // Details for selected Date
-  const attendedToday = attendance.filter(a => a.date === dateStr && a.checkIn).map(a => ({
+  const attendedToday = activeAttendance.filter(a => a.date === dateStr && a.checkIn).map(a => ({
     record: a,
-    emp: employees.find(e => e.id === a.employeeId)
+    emp: activeEmployees.find(e => e.id === a.employeeId)
   })).filter(x => x.emp);
 
-  const leavesToday = leaves.filter(l => isLeaveActive(l, dateStr)).map(l => ({
+  const leavesToday = activeLeaves.filter(l => isLeaveActive(l, dateStr)).map(l => ({
     record: l,
-    emp: employees.find(e => e.id === l.employeeId)
+    emp: activeEmployees.find(e => e.id === l.employeeId)
   })).filter(x => x.emp);
 
   const annualLeaves = leavesToday.filter(l => l.record.type === 'Annual');
@@ -98,9 +103,9 @@ export default function CalendarPage() {
                 const _isToday = isToday(day);
                 const _isSelected = isSameDay(day, selectedDate);
                 
-                const hasAttendance = attendance.some(a => a.date === dayStr && a.checkIn);
-                const hasAnnualLeave = leaves.some(l => l.type === 'Annual' && isLeaveActive(l, dayStr));
-                const hasSickLeave = leaves.some(l => l.type === 'Sick/Emergency' && isLeaveActive(l, dayStr));
+                const hasAttendance = activeAttendance.some(a => a.date === dayStr && a.checkIn);
+                const hasAnnualLeave = activeLeaves.some(l => l.type === 'Annual' && isLeaveActive(l, dayStr));
+                const hasSickLeave = activeLeaves.some(l => l.type === 'Sick/Emergency' && isLeaveActive(l, dayStr));
 
                 return (
                   <button 

@@ -58,7 +58,7 @@ export default function MinimalDateSelector({ selectedDate, onDateChange }: Mini
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute right-0 mt-3 p-5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 w-80 origin-top-right"
+              className="fixed inset-x-4 top-20 sm:absolute sm:inset-auto sm:right-0 sm:mt-3 p-5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 w-auto sm:w-80 origin-top-right"
             >
               {/* Month Navigation */}
               <div className="flex items-center justify-between mb-4">

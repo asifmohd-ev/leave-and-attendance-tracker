@@ -18,11 +18,15 @@ export default function EmployeeProfilePage() {
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   if (!mounted) return null;
 
-  const employee = employees.find((e) => e.id === id);
+  const employee = employees.find((e) => e.id === id && !e.deletedAt);
+
+  const activeAttendance = attendance.filter(a => !a.deletedAt);
+  const activeLeaves = leaves.filter(l => !l.deletedAt);
 
   if (!employee) {
     return (
@@ -41,13 +45,13 @@ export default function EmployeeProfilePage() {
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   // Monthly stats
-  const monthlyAttendance = attendance.filter(a => a.employeeId === id && isSameMonth(new Date(a.date), currentMonth) && a.checkIn);
+  const monthlyAttendance = activeAttendance.filter(a => a.employeeId === id && isSameMonth(new Date(a.date), currentMonth) && a.checkIn);
   
   // All Time Stats
-  const allTimeLeaves = leaves.filter(l => l.employeeId === id).map(l => ({
+  const allTimeLeaves = activeLeaves.filter(l => l.employeeId === id).map(l => ({
     ...l,
-    startDate: l.startDate || (l as any).date || new Date().toISOString(),
-    endDate: l.endDate || (l as any).date || new Date().toISOString()
+    startDate: l.startDate || (l as { date?: string }).date || new Date().toISOString(),
+    endDate: l.endDate || (l as { date?: string }).date || new Date().toISOString()
   }));
 
   let totalAnnual = 0;
@@ -63,14 +67,14 @@ export default function EmployeeProfilePage() {
           else totalSick += 1;
         }
       });
-    } catch (e) {
+    } catch (e: unknown) {
       // Fallback
     }
   });
 
   const generateExcel = () => {
-    const records: any[] = [];
-    const empAtts = attendance.filter(a => a.employeeId === id && a.checkIn);
+    const records: { Date: string; Type: string; Details: string }[] = [];
+    const empAtts = activeAttendance.filter(a => a.employeeId === id && a.checkIn);
     empAtts.forEach(a => records.push({ Date: a.date, Type: 'Attendance', Details: `IN: ${a.checkIn} ${a.checkOut ? `OUT: ${a.checkOut}` : ''}` }));
     
     allTimeLeaves.forEach(l => {
@@ -121,7 +125,7 @@ export default function EmployeeProfilePage() {
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     
-    const empAtts = attendance.filter(a => a.employeeId === id && a.checkIn);
+    const empAtts = activeAttendance.filter(a => a.employeeId === id && a.checkIn);
     doc.text(`Active Days: ${empAtts.length}`, 15, currentY); currentY += 6;
     doc.text(`Annual Leaves Taken: ${totalAnnual} / ${ANNUAL_LEAVE_LIMIT} (Remaining: ${ANNUAL_LEAVE_LIMIT - totalAnnual})`, 15, currentY); currentY += 6;
     doc.text(`Sick Leaves: ${totalSick}`, 15, currentY); currentY += 15;
@@ -130,7 +134,7 @@ export default function EmployeeProfilePage() {
     doc.setFont("helvetica", "bold");
     doc.text("ACTIVITY LOGS", 15, currentY);
 
-    const records: any[] = [];
+    const records: [string, string, string][] = [];
     empAtts.forEach(a => records.push([a.date, 'Attendance', `IN: ${a.checkIn} ${a.checkOut ? `OUT: ${a.checkOut}` : ''}` ]));
     
     allTimeLeaves.forEach(l => {
@@ -184,6 +188,7 @@ export default function EmployeeProfilePage() {
         <div className="relative px-10 pb-10 flex flex-col md:flex-row gap-8 md:items-end -mt-16">
           <div className="w-40 h-40 rounded-full border-4 border-white shadow-md bg-slate-100 flex-shrink-0 overflow-hidden flex items-center justify-center text-slate-300 font-bold text-5xl">
             {employee.photoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img src={employee.photoUrl} alt={employee.name} className="w-full h-full object-cover" />
             ) : (
               <span className="uppercase">{employee.name.charAt(0)}</span>
@@ -288,7 +293,7 @@ export default function EmployeeProfilePage() {
             
             {daysInMonth.map((day) => {
               const dateStr = format(day, 'yyyy-MM-dd');
-              const attRecord = attendance.find(a => a.employeeId === id && a.date === dateStr);
+              const attRecord = activeAttendance.find(a => a.employeeId === id && a.date === dateStr);
               const leaveRecord = allTimeLeaves.find(l => {
                 const start = l.startDate;
                 const end = l.endDate;

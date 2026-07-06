@@ -14,7 +14,7 @@ export const getBusinessDaysInInterval = (start: Date, end: Date): Date[] => {
   try {
     const allDays = eachDayOfInterval({ start, end });
     return allDays.filter(isBusinessDay);
-  } catch (error) {
+  } catch {
     console.error("Invalid interval for getBusinessDaysInInterval", { start, end });
     return [];
   }

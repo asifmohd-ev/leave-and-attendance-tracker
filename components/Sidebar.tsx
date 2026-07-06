@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CalendarCheck, CalendarOff, CalendarDays, FileDown, LogOut, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, Users, CalendarCheck, CalendarOff, CalendarDays, FileDown, LogOut, ShieldAlert, Trash2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { useStore } from "@/lib/store";
@@ -24,6 +24,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
     { name: "Employees", href: "/employees", icon: Users },
     { name: "Export", href: "/export", icon: FileDown },
     { name: "Settings", href: "/users", icon: ShieldAlert },
+    { name: "Recycle Bin", href: "/recycle-bin", icon: Trash2 },
   ];
 
   return (

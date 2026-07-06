@@ -23,10 +23,16 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"daily" | "whole_data">("daily");
   const { employees, attendance, leaves } = useStore();
+
+  const activeEmployees = employees.filter(e => !e.deletedAt);
+  const activeAttendance = attendance.filter(a => !a.deletedAt);
+  const activeLeaves = leaves.filter(l => !l.deletedAt);
+
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const isSelectedToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -41,26 +47,26 @@ export default function Dashboard() {
     );
   }
 
-  const isLeaveActive = (l: any, targetStr: string) => {
+  const isLeaveActive = (l: { startDate?: string; date?: string; endDate?: string; type?: string }, targetStr: string) => {
     if (!isBusinessDay(parseISO(targetStr))) return false;
     const start = l.startDate || l.date;
     const end = l.endDate || start;
-    if (!start) return false;
+    if (!start || !end) return false;
     try { return isWithinInterval(parseISO(targetStr), { start: parseISO(start), end: parseISO(end) }); } catch { return false; }
   };
 
   const presentsOnSelectedDate = viewMode === "whole_data"
-    ? attendance.filter(a => a.checkIn).length
-    : attendance.filter(a => a.date === selectedDateStr && a.checkIn).length;
+    ? activeAttendance.filter(a => a.checkIn).length
+    : activeAttendance.filter(a => a.date === selectedDateStr && a.checkIn).length;
     
   const leavesOnSelectedDate = viewMode === "whole_data"
-    ? leaves
-    : leaves.filter(l => isLeaveActive(l, selectedDateStr));  
+    ? activeLeaves
+    : activeLeaves.filter(l => isLeaveActive(l, selectedDateStr));  
 
   const stats = [
     {
       label: "Total Personnel",
-      value: employees.length,
+      value: activeEmployees.length,
       icon: Users,
       link: "/employees",
       color: "text-teal-600",
@@ -178,12 +184,13 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {leavesOnSelectedDate.map((leave) => {
-                const emp = employees.find(e => e.id === leave.employeeId);
+                const emp = activeEmployees.find(e => e.id === leave.employeeId);
                 return (
                   <div key={leave.id} className="flex items-center justify-between p-5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all group">
                     <div className="flex items-center gap-3.5">
                       <div className="w-10 h-10 rounded-full border-2 border-white bg-white shadow-sm flex items-center justify-center overflow-hidden">
                         {emp?.photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={emp.photoUrl} alt="avatar" className="w-full h-full object-cover" />
                         ) : (
                           <span className="text-sm font-bold text-slate-400 uppercase">{emp?.name.charAt(0)}</span>

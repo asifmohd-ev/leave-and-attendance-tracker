@@ -13,16 +13,19 @@ export default function LeaveBalancesGrid({ timeHorizon = "current_year" }: Prop
   const { employees, leaves } = useStore();
   const currentYear = new Date().getFullYear();
 
-  const data = employees.map((emp) => {
+  const activeEmployees = employees.filter(e => !e.deletedAt);
+  const activeLeaves = leaves.filter(l => !l.deletedAt);
+
+  const data = activeEmployees.map((emp) => {
     let annualTaken = 0;
     let sickTaken = 0;
     
     // Process leaves specific to employee
-    const empLeaves = leaves.filter(l => l.employeeId === emp.id);
+    const empLeaves = activeLeaves.filter(l => l.employeeId === emp.id);
     
     empLeaves.forEach(l => {
-      const start = new Date(l.startDate || (l as any).date || new Date());
-      const end = new Date(l.endDate || (l as any).date || new Date());
+      const start = new Date(l.startDate || (l as { date?: string }).date || new Date());
+      const end = new Date(l.endDate || (l as { date?: string }).date || new Date());
       
       try {
         const days = eachDayOfInterval({ start, end });
@@ -32,7 +35,7 @@ export default function LeaveBalancesGrid({ timeHorizon = "current_year" }: Prop
             else sickTaken += 1;
           }
         });
-      } catch (e) {
+      } catch {
         // Safe fallback in case of invalid dates
       }
     });
@@ -57,7 +60,12 @@ export default function LeaveBalancesGrid({ timeHorizon = "current_year" }: Prop
           <div key={emp.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-teal-300 transition-all overflow-hidden group flex flex-col">
             <div className="p-6 py-5 border-b border-slate-50 flex items-center gap-4 shrink-0 bg-white">
                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center font-bold text-slate-300 border border-slate-100 shadow-inner overflow-hidden uppercase shrink-0">
-                 {emp.photoUrl ? <img src={emp.photoUrl} alt="" className="w-full h-full object-cover" /> : emp.name.charAt(0)}
+                 {emp.photoUrl ? (
+                   /* eslint-disable-next-line @next/next/no-img-element */
+                   <img src={emp.photoUrl} alt="" className="w-full h-full object-cover" />
+                 ) : (
+                   emp.name.charAt(0)
+                 )}
                </div>
                <div className="overflow-hidden">
                  <h3 className="font-bold text-slate-800 tracking-tight truncate">{emp.name}</h3>

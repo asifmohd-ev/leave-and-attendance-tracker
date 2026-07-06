@@ -3,6 +3,7 @@
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { Plus, Trash2, User, ChevronRight, Edit2 } from "lucide-react";
+import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
 import Link from "next/link";
 import { format } from "date-fns";
 
@@ -14,7 +15,11 @@ export default function EmployeesPage() {
   const [name, setName] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
+  const activeEmployees = employees.filter(e => !e.deletedAt);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
@@ -73,7 +78,7 @@ export default function EmployeesPage() {
         </button>
       </header>
 
-      {employees.length === 0 ? (
+      {activeEmployees.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-24 text-center flex flex-col items-center shadow-sm">
           <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mb-6 border-2 border-slate-100 border-dashed">
             <User size={32} strokeWidth={2} />
@@ -86,12 +91,13 @@ export default function EmployeesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {employees.map((emp) => (
+          {activeEmployees.map((emp) => (
             <div key={emp.id} className="bg-white p-7 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-300 flex flex-col group">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-4">
                   <div className="relative w-16 h-16 bg-slate-50 border-2 border-white shadow-sm flex flex-shrink-0 items-center justify-center rounded-full overflow-hidden group-hover:scale-105 transition-transform">
                     {emp.photoUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={emp.photoUrl} alt={emp.name} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-2xl font-bold text-slate-300">{emp.name.charAt(0)}</span>
@@ -106,7 +112,7 @@ export default function EmployeesPage() {
                    <button onClick={() => openEditModal(emp)} className="p-2 text-slate-400 hover:text-teal-600 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
                      <Edit2 size={16} strokeWidth={2.5} />
                    </button>
-                   <button onClick={() => removeEmployee(emp.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
+                   <button onClick={() => setDeleteTarget({ id: emp.id, name: emp.name })} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
                      <Trash2 size={16} strokeWidth={2.5} />
                    </button>
                 </div>
@@ -181,6 +187,13 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+      <ConfirmDeleteDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && removeEmployee(deleteTarget.id)}
+        itemName={deleteTarget?.name || ""}
+        itemType="Employee"
+      />
     </div>
   );
 }

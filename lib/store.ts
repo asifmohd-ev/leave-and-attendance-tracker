@@ -15,6 +15,7 @@ export type Employee = {
   name: string;
   photoUrl?: string;
   joinDate: string; // ISO String
+  deletedAt?: string | null;
 };
 
 export type Attendance = {
@@ -23,6 +24,7 @@ export type Attendance = {
   date: string; // YYYY-MM-DD
   checkIn?: string; // e.g. "09:00 AM"
   checkOut?: string; // e.g. "05:00 PM"
+  deletedAt?: string | null;
 };
 
 export type LeaveType = 'Annual' | 'Sick/Emergency';
@@ -33,6 +35,7 @@ export type Leave = {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   type: LeaveType;
+  deletedAt?: string | null;
 };
 
 interface AppState {
@@ -57,12 +60,17 @@ interface AppState {
   addLeave: (employeeId: string, startDate: string, endDate: string, type: LeaveType) => Promise<void>;
   removeLeave: (id: string) => Promise<void>;
   
+  restoreEmployee: (id: string) => Promise<void>;
+  restoreLeave: (id: string) => Promise<void>;
+  permanentlyDeleteEmployee: (id: string) => Promise<void>;
+  permanentlyDeleteLeave: (id: string) => Promise<void>;
+  
   // Initializer
   initRealtimeSync: () => () => void;
 
   // Report Links
-  saveReportConfig: (config: any, snapshot?: any) => Promise<string>;
-  getReportConfig: (id: string) => Promise<any | null>;
+  saveReportConfig: (config: Record<string, unknown>, snapshot?: unknown) => Promise<string>;
+  getReportConfig: (id: string) => Promise<Record<string, unknown> | null>;
 }
 
 export const useStore = create<AppState>()((set, get) => ({
@@ -145,20 +153,18 @@ export const useStore = create<AppState>()((set, get) => ({
   },
   
   removeEmployee: async (id) => {
-    // Delete employee
-    await deleteDoc(doc(db, 'employees', id));
+    const deletedAt = new Date().toISOString();
+    await updateDoc(doc(db, 'employees', id), { deletedAt });
     
-    // Cleanup related attendance
     const state = get();
     const relatedAttendance = state.attendance.filter(a => a.employeeId === id);
     for (const a of relatedAttendance) {
-      deleteDoc(doc(db, 'attendance', a.id));
+      updateDoc(doc(db, 'attendance', a.id), { deletedAt });
     }
     
-    // Cleanup related leaves
     const relatedLeaves = state.leaves.filter(l => l.employeeId === id);
     for (const l of relatedLeaves) {
-      deleteDoc(doc(db, 'leaves', l.id));
+      updateDoc(doc(db, 'leaves', l.id), { deletedAt });
     }
   },
   
@@ -199,10 +205,48 @@ export const useStore = create<AppState>()((set, get) => ({
   },
   
   removeLeave: async (id) => {
+    await updateDoc(doc(db, 'leaves', id), { deletedAt: new Date().toISOString() });
+  },
+
+  restoreEmployee: async (id) => {
+    await updateDoc(doc(db, 'employees', id), { deletedAt: null });
+    
+    const state = get();
+    const relatedAttendance = state.attendance.filter(a => a.employeeId === id);
+    for (const a of relatedAttendance) {
+      updateDoc(doc(db, 'attendance', a.id), { deletedAt: null });
+    }
+    
+    const relatedLeaves = state.leaves.filter(l => l.employeeId === id);
+    for (const l of relatedLeaves) {
+      updateDoc(doc(db, 'leaves', l.id), { deletedAt: null });
+    }
+  },
+
+  restoreLeave: async (id) => {
+    await updateDoc(doc(db, 'leaves', id), { deletedAt: null });
+  },
+
+  permanentlyDeleteEmployee: async (id) => {
+    await deleteDoc(doc(db, 'employees', id));
+    
+    const state = get();
+    const relatedAttendance = state.attendance.filter(a => a.employeeId === id);
+    for (const a of relatedAttendance) {
+      deleteDoc(doc(db, 'attendance', a.id));
+    }
+    
+    const relatedLeaves = state.leaves.filter(l => l.employeeId === id);
+    for (const l of relatedLeaves) {
+      deleteDoc(doc(db, 'leaves', l.id));
+    }
+  },
+
+  permanentlyDeleteLeave: async (id) => {
     await deleteDoc(doc(db, 'leaves', id));
   },
 
-  saveReportConfig: async (config, snapshot) => {
+  saveReportConfig: async (config) => {
     // Generate a short ID (6 chars)
     const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     let shortId = '';
@@ -211,8 +255,7 @@ export const useStore = create<AppState>()((set, get) => ({
     }
 
     await setDoc(doc(db, 'short_links', shortId), {
-      config,
-      snapshot: snapshot || null,
+      ...config,
       createdAt: new Date().toISOString()
     });
 

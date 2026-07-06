@@ -12,6 +12,11 @@ import * as XLSX from "xlsx";
 export default function ExportPage() {
   const [mounted, setMounted] = useState(false);
   const { employees, attendance, leaves, saveReportConfig } = useStore();
+
+  const activeEmployees = employees.filter(e => !e.deletedAt);
+  const activeAttendance = attendance.filter(a => !a.deletedAt);
+  const activeLeaves = leaves.filter(l => !l.deletedAt);
+
   const [copied, setCopied] = useState(false);
   
   const [fromDate, setFromDate] = useState("");
@@ -25,14 +30,15 @@ export default function ExportPage() {
   const [incSummary, setIncSummary] = useState(true);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    setSelectedEmps(employees.map(e => e.id));
+    setSelectedEmps(activeEmployees.map(e => e.id));
   }, [employees]);
 
   if (!mounted) return null;
 
   const toggleEmp = (id: string) => setSelectedEmps(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const selectAllEmps = () => setSelectedEmps(employees.map(e => e.id));
+  const selectAllEmps = () => setSelectedEmps(activeEmployees.map(e => e.id));
   const deselectAllEmps = () => setSelectedEmps([]);
 
   const setTodayPreset = () => {
@@ -52,25 +58,25 @@ export default function ExportPage() {
   };
 
   const getFilteredData = () => {
-    const records: any[] = [];
+    const records: { Emp: string; Date: string; Type: string; Details: string }[] = [];
     let globalAtt = 0;
     let globalAnn = 0;
     let globalSick = 0;
     const empCounts: Record<string, { att: number, ann: number, sick: number }> = {};
 
     selectedEmps.forEach(empId => {
-      const emp = employees.find(e => e.id === empId);
+      const emp = activeEmployees.find(e => e.id === empId);
       if (!emp) return;
       
-      const atts = attendance.filter(a => a.employeeId === empId && a.checkIn && isDateInRange(a.date));
-      const rawAnns = leaves.filter(l => l.employeeId === empId && l.type === 'Annual');
-      const rawSicks = leaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency');
+      const atts = activeAttendance.filter(a => a.employeeId === empId && a.checkIn && isDateInRange(a.date));
+      const rawAnns = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Annual');
+      const rawSicks = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency');
 
       const anns: string[] = [];
       rawAnns.forEach(l => {
-        const start = l.startDate || (l as any).date;
+        const start = l.startDate || (l as { date?: string }).date;
         const end = l.endDate || start;
-        if (!start) return;
+        if (!start || !end) return;
         eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
           const dStr = format(d, 'yyyy-MM-dd');
           if (isDateInRange(dStr) && isBusinessDay(d)) anns.push(dStr);
@@ -79,9 +85,9 @@ export default function ExportPage() {
 
       const sicks: string[] = [];
       rawSicks.forEach(l => {
-        const start = l.startDate || (l as any).date;
+        const start = l.startDate || (l as { date?: string }).date;
         const end = l.endDate || start;
-        if (!start) return;
+        if (!start || !end) return;
         eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
           const dStr = format(d, 'yyyy-MM-dd');
           if (isDateInRange(dStr) && isBusinessDay(d)) sicks.push(dStr);
@@ -119,14 +125,14 @@ export default function ExportPage() {
     const totalEvents = globalAtt + globalAnn + globalSick;
 
     const summaryRows = selectedEmps.map(empId => {
-      const emp = employees.find(e => e.id === empId);
+      const emp = activeEmployees.find(e => e.id === empId);
       if (!emp) return '';
       const c = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
       return `<tr><td>${emp.name}</td><td>${c.att}</td><td>${c.ann}</td><td>${c.sick}</td></tr>`;
     }).join('');
 
     const activityLogs = selectedEmps.map(empId => {
-      const emp = employees.find(e => e.id === empId);
+      const emp = activeEmployees.find(e => e.id === empId);
       if (!emp) return '';
       const empRecs = records.filter(r => r.Emp === emp.name);
       if (empRecs.length === 0) return '';
@@ -340,7 +346,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       }
       
       const summaryBody = selectedEmps.map(empId => {
-        const emp = employees.find(e => e.id === empId);
+        const emp = activeEmployees.find(e => e.id === empId);
         if(!emp) return [];
         const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
         return [emp.name, counts.att.toString(), counts.ann.toString(), counts.sick.toString()];
@@ -356,7 +362,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         alternateRowStyles: { fillColor: [255, 255, 255] },
       });
       
-      currentY = (doc as any).lastAutoTable.finalY + 20;
+      currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 20;
     }
 
     // Detailed Activity
@@ -367,7 +373,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       }
 
       selectedEmps.forEach((empId) => {
-        const emp = employees.find(e => e.id === empId);
+        const emp = activeEmployees.find(e => e.id === empId);
         if (!emp) return;
         const empRecs = records.filter(r => r.Emp === emp.name).map(r => [r.Date, r.Type, r.Details]);
         if (empRecs.length === 0) return;
@@ -390,7 +396,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
           margin: { bottom: 20 }
         });
 
-        currentY = (doc as any).lastAutoTable.finalY + 15;
+        currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 15;
       });
     }
 
@@ -411,7 +417,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       sumData.push(['Employee Name', 'Active Days', 'Annual Leaves', 'Sick Leaves']);
       
       selectedEmps.forEach(empId => {
-        const emp = employees.find(e => e.id === empId);
+        const emp = activeEmployees.find(e => e.id === empId);
         if(!emp) return;
         const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
         sumData.push([
@@ -538,7 +544,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
                 <Users size={20} strokeWidth={2.5} className="text-teal-600" />
                 <h2 className="text-[11px] font-bold uppercase tracking-widest">Select Personnel</h2>
               </div>
-              <span className="text-[10px] font-bold px-2 py-1 bg-white border border-slate-200 text-slate-500 rounded-lg tabular-nums shadow-sm">{selectedEmps.length} / {employees.length}</span>
+              <span className="text-[10px] font-bold px-2 py-1 bg-white border border-slate-200 text-slate-500 rounded-lg tabular-nums shadow-sm">{selectedEmps.length} / {activeEmployees.length}</span>
             </div>
             
             <div className="p-6 shrink-0 flex gap-3 bg-slate-50/20 border-b border-slate-50">
@@ -557,10 +563,10 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-white">
-              {employees.length === 0 ? (
+              {activeEmployees.length === 0 ? (
                 <div className="text-center text-slate-300 text-xs font-bold py-20 italic">No employees identified.</div>
               ) : (
-                employees.map(emp => {
+                activeEmployees.map(emp => {
                   const isSelected = selectedEmps.includes(emp.id);
                   return (
                     <button 
@@ -572,7 +578,12 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
                     >
                       <div className="flex items-center gap-3 overflow-hidden">
                         <div className={`w-10 h-10 rounded-full shrink-0 border-2 transition-all duration-300 ${isSelected ? 'bg-white border-teal-200 shadow-sm' : 'bg-slate-50 border-slate-100 text-slate-300'}`}>
-                          {emp.photoUrl ? <img src={emp.photoUrl} alt="" className={`w-full h-full object-cover rounded-full ${!isSelected && 'grayscale'}`} /> : <span className="font-bold text-sm h-full flex items-center justify-center">{emp.name.charAt(0)}</span>}
+                          {emp.photoUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img src={emp.photoUrl} alt="" className={`w-full h-full object-cover rounded-full ${!isSelected && 'grayscale'}`} />
+                          ) : (
+                            <span className="font-bold text-sm h-full flex items-center justify-center">{emp.name.charAt(0)}</span>
+                          )}
                         </div>
                         <div className="text-left">
                           <span className={`font-bold text-xs tracking-tight truncate uppercase block ${isSelected ? 'text-slate-900' : 'text-slate-400 group-hover/entity:text-slate-600'}`}>{emp.name}</span>

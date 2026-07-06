@@ -1,7 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only authenticated users can read/write any data
+    // Public read for short links (report snapshots)
+    match /short_links/{linkId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Only authenticated users can read/write any other data
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

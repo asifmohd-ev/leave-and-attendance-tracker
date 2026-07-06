@@ -16,7 +16,9 @@ function SnapshotViewer({ sid }: { sid: string }) {
   useEffect(() => {
     getReportConfig(sid).then((data) => {
       if (data?.htmlContent) {
-        setHtml(data.htmlContent);
+        setHtml(data.htmlContent as string);
+      } else if (data?.config && (data.config as Record<string, unknown>)?.htmlContent) {
+        setHtml((data.config as Record<string, unknown>).htmlContent as string);
       } else {
         setError(true);
       }

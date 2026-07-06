@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, addDays, subDays, isSameDay } from "date-fns";
-import { ChevronRight, Calendar as CalendarIcon, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 
 interface ChronosDialProps {
   selectedDate: Date;

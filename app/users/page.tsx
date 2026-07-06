@@ -4,9 +4,10 @@ import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { initializeApp, getApps, getApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db, app } from "@/lib/firebase";
 import { ShieldAlert, Trash2, UserPlus, Shield, Loader2 } from "lucide-react";
+import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
 
 type SystemUser = {
   uid: string;
@@ -14,6 +15,7 @@ type SystemUser = {
   email: string;
   role: string;
   createdAt: string;
+  deletedAt?: string | null;
 };
 
 export default function UsersPage() {
@@ -26,11 +28,13 @@ export default function UsersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<SystemUser | null>(null);
 
   useEffect(() => {
     setMounted(true);
     const unsub = onSnapshot(collection(db, "system_users"), (snapshot) => {
-      setSystemUsers(snapshot.docs.map((d) => ({ uid: d.id, ...d.data() } as SystemUser)));
+      const allUsers = snapshot.docs.map((d) => ({ uid: d.id, ...d.data() } as SystemUser));
+      setSystemUsers(allUsers.filter(u => !u.deletedAt));
     });
     return () => unsub();
   }, []);
@@ -67,8 +71,9 @@ export default function UsersPage() {
       setName("");
       setEmail("");
       setPassword("");
-    } catch (err: any) {
-      setError(err.message || "Failed to create user.");
+    } catch (err: unknown) {
+      const error = err as Error;
+      setError(error.message || "Failed to create user.");
     } finally {
       // Always clean up the secondary app instance to prevent stale references
       await deleteApp(secondaryApp).catch(() => {});
@@ -77,12 +82,20 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = async (uid: string) => {
-    if (!window.confirm("Remove this user? Notice: This deletes their database profile but cannot physically delete their Firebase Auth credential without an Admin SDK.")) return;
-    
     try {
-      await deleteDoc(doc(db, "system_users", uid));
-    } catch (err: any) {
-      alert("Error removing user: " + err.message);
+      await updateDoc(doc(db, "system_users", uid), { deletedAt: new Date().toISOString() });
+    } catch (err: unknown) {
+      const error = err as Error;
+      alert("Error removing user: " + error.message);
+    }
+  };
+
+  const handleRestoreUser = async (uid: string) => {
+    try {
+      await updateDoc(doc(db, "system_users", uid), { deletedAt: null });
+    } catch (err: unknown) {
+      const error = err as Error;
+      alert("Error restoring user: " + error.message);
     }
   };
 
@@ -171,7 +184,7 @@ export default function UsersPage() {
                       <td className="px-6 py-4">
                         {su.uid !== user?.uid && (
                           <button 
-                            onClick={() => handleDeleteUser(su.uid)}
+                            onClick={() => setDeleteTarget(su)}
                             className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
                             title="Delete User"
                           >
@@ -190,6 +203,13 @@ export default function UsersPage() {
           )}
         </div>
       </div>
+      <ConfirmDeleteDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && handleDeleteUser(deleteTarget.uid)}
+        itemName={deleteTarget?.name || ""}
+        itemType="User"
+      />
     </div>
   );
 }

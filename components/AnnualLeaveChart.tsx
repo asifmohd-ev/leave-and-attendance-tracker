@@ -23,15 +23,18 @@ export default function AnnualLeaveChart({ timeHorizon = "current_year" }: Props
   const { employees, leaves } = useStore();
   const currentYear = new Date().getFullYear();
 
-  const data = employees.map((emp) => {
+  const activeEmployees = employees.filter(e => !e.deletedAt);
+  const activeLeaves = leaves.filter(l => !l.deletedAt);
+
+  const data = activeEmployees.map((emp) => {
     let taken = 0;
     
     // Filter to annual leaves for this employee
-    const annualLeaves = leaves.filter(l => l.employeeId === emp.id && l.type === 'Annual');
+    const annualLeaves = activeLeaves.filter(l => l.employeeId === emp.id && l.type === 'Annual');
     
     annualLeaves.forEach(l => {
-      const start = new Date(l.startDate || (l as any).date || new Date());
-      const end = new Date(l.endDate || (l as any).date || new Date());
+      const start = new Date(l.startDate || (l as { date?: string }).date || new Date());
+      const end = new Date(l.endDate || (l as { date?: string }).date || new Date());
       
       // Calculate intersection with current year
       try {
@@ -41,7 +44,7 @@ export default function AnnualLeaveChart({ timeHorizon = "current_year" }: Props
             taken += 1;
           }
         });
-      } catch (e) {
+      } catch {
         // Fallback for invalid dates
       }
     });
