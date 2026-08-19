@@ -33,7 +33,7 @@ function SnapshotViewer({ sid }: { sid: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-6">
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-white gap-6">
         <div className="w-16 h-16 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin" />
         <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] animate-pulse">
           Decrypting Workforce Intelligence...
@@ -44,7 +44,7 @@ function SnapshotViewer({ sid }: { sid: string }) {
 
   if (error || !html) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4 p-8">
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-white gap-4 p-8">
         <Shield size={40} className="text-slate-200" />
         <p className="text-slate-400 font-bold text-sm">This report link is invalid or has expired.</p>
         <Link href="/" className="text-teal-600 text-xs font-bold uppercase tracking-widest hover:underline">
@@ -92,7 +92,7 @@ function ReportViewerContent() {
 
   // Legacy long-link fallback — just show a message since this path is deprecated
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4 p-8">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-white gap-4 p-8">
       <Shield size={40} className="text-slate-200" />
       <p className="text-slate-400 font-bold text-sm">This link format is no longer supported.</p>
       <p className="text-slate-300 text-xs">Please generate a new share link from the Export page.</p>
@@ -107,7 +107,7 @@ export default function ReportViewer() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-6">
+        <div className="min-h-dvh flex flex-col items-center justify-center bg-white gap-6">
           <div className="w-16 h-16 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin" />
           <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] animate-pulse">
             Loading Report...

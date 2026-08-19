@@ -11,7 +11,10 @@ import * as XLSX from "xlsx";
 
 export default function ExportPage() {
   const [mounted, setMounted] = useState(false);
-  const { employees, attendance, leaves, saveReportConfig } = useStore();
+  const employees = useStore(s => s.employees);
+  const attendance = useStore(s => s.attendance);
+  const leaves = useStore(s => s.leaves);
+  const saveReportConfig = useStore(s => s.saveReportConfig);
 
   const activeEmployees = employees.filter(e => !e.deletedAt);
   const activeAttendance = attendance.filter(a => !a.deletedAt);

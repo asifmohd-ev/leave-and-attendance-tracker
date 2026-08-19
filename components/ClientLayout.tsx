@@ -25,9 +25,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   if (isEmployeePage) {
     return (
-      <div className="flex h-screen w-full overflow-hidden">
+      <div className="flex h-dvh w-full overflow-hidden">
         <main className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto overscroll-contain">
             <div className="p-4 lg:p-10 max-w-[1600px] mx-auto min-h-full">
               {children}
             </div>
@@ -38,7 +38,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex h-dvh w-full overflow-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <main className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
         {/* Mobile Header */}
@@ -54,7 +54,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           <div className="p-4 lg:p-10 max-w-[1600px] mx-auto min-h-full">
             <AdminGuard>
               {children}

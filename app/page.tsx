@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore } from "@/lib/store";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format, isWithinInterval, parseISO } from "date-fns";
 import { isBusinessDay } from "@/lib/dateUtils";
 import { 
@@ -22,11 +22,13 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"daily" | "whole_data">("daily");
-  const { employees, attendance, leaves } = useStore();
+  const employees = useStore(s => s.employees);
+  const attendance = useStore(s => s.attendance);
+  const leaves = useStore(s => s.leaves);
 
-  const activeEmployees = employees.filter(e => !e.deletedAt);
-  const activeAttendance = attendance.filter(a => !a.deletedAt);
-  const activeLeaves = leaves.filter(l => !l.deletedAt);
+  const activeEmployees = useMemo(() => employees.filter(e => !e.deletedAt), [employees]);
+  const activeAttendance = useMemo(() => attendance.filter(a => !a.deletedAt), [attendance]);
+  const activeLeaves = useMemo(() => leaves.filter(l => !l.deletedAt), [leaves]);
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const isSelectedToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');

@@ -41,7 +41,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50 px-4">
+    <div className="flex items-center justify-center min-h-dvh bg-slate-50 px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden transform transition-all">
         <div className="bg-teal-600 p-8 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/20 mb-4 ring-4 ring-teal-500/30">

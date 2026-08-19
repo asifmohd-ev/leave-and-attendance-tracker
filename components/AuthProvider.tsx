@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   if (!authLoaded) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+      <div className="flex h-dvh w-full items-center justify-center bg-slate-50">
         <Loader2 className="w-10 h-10 text-teal-600 animate-spin" />
       </div>
     );

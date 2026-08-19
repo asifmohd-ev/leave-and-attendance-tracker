@@ -1,19 +1,43 @@
 "use client";
 
 import { useStore, type Leave } from "@/lib/store";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay, isWithinInterval, parseISO } from "date-fns";
 import { isBusinessDay } from "@/lib/dateUtils";
 import { uaeHolidays } from "@/lib/uaeHolidays";
 import { ChevronLeft, ChevronRight, UserCheck, ShieldAlert, CircleDashed, CalendarPlus, X, Flag } from "lucide-react";
 
+const expandLeaveToDays = (l: Leave): string[] => {
+  const start = l.startDate;
+  const end = l.endDate;
+  if (!start || !end) return [];
+  try {
+    return eachDayOfInterval({ start: new Date(start), end: new Date(end) })
+      .filter(isBusinessDay)
+      .map(d => format(d, 'yyyy-MM-dd'));
+  } catch {
+    return [];
+  }
+};
+
 export default function CalendarPage() {
   const [mounted, setMounted] = useState(false);
-  const { employees, attendance, leaves, calendarEvents, addCalendarEvent, removeCalendarEvent } = useStore();
+  const employees = useStore(s => s.employees);
+  const attendance = useStore(s => s.attendance);
+  const leaves = useStore(s => s.leaves);
+  const calendarEvents = useStore(s => s.calendarEvents);
+  const addCalendarEvent = useStore(s => s.addCalendarEvent);
+  const removeCalendarEvent = useStore(s => s.removeCalendarEvent);
 
-  const activeEmployees = employees.filter(e => !e.deletedAt);
-  const activeAttendance = attendance.filter(a => !a.deletedAt);
-  const activeLeaves = leaves.filter(l => !l.deletedAt);
+  const activeEmployees = useMemo(() => employees.filter(e => !e.deletedAt), [employees]);
+  const activeAttendance = useMemo(() => attendance.filter(a => !a.deletedAt), [attendance]);
+  const activeLeaves = useMemo(() => leaves.filter(l => !l.deletedAt), [leaves]);
+
+  const attendanceDates = useMemo(() => new Set(activeAttendance.filter(a => a.checkIn).map(a => a.date)), [activeAttendance]);
+  const annualLeaveDates = useMemo(() => new Set(activeLeaves.filter(l => l.type === 'Annual').flatMap(expandLeaveToDays)), [activeLeaves]);
+  const sickLeaveDates = useMemo(() => new Set(activeLeaves.filter(l => l.type === 'Sick/Emergency').flatMap(expandLeaveToDays)), [activeLeaves]);
+  const holidayDates = useMemo(() => new Set(uaeHolidays.map(h => h.date)), []);
+  const customEventDates = useMemo(() => new Set(calendarEvents.map(e => e.date)), [calendarEvents]);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -72,7 +96,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="space-y-6 lg:space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto lg:h-[calc(100vh-100px)] flex flex-col pb-6 lg:overflow-hidden">
+    <div className="space-y-6 lg:space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto lg:h-[calc(100dvh-100px)] flex flex-col pb-6 lg:overflow-hidden">
       <header className="shrink-0 mb-2">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Attendance Matrix</h1>
         <p className="text-slate-500 mt-1 text-sm sm:text-base">Comprehensive view of workforce distribution and attendance patterns.</p>
@@ -114,7 +138,7 @@ export default function CalendarPage() {
             </div>
           )}
 
-          <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto bg-white relative">
+          <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto overscroll-contain bg-white relative">
             <div className="grid grid-cols-7 gap-1 sm:gap-3 mb-4 sm:mb-6">
               {['SUN','MON','TUE','WED','THU','FRI','SAT'].map(d => (
                 <div key={d} className="text-center text-[10px] font-bold uppercase tracking-widest text-slate-300 py-2 border-b border-slate-50">{d}</div>
@@ -131,11 +155,11 @@ export default function CalendarPage() {
                 const _isToday = isToday(day);
                 const _isSelected = isSameDay(day, selectedDate);
                 
-                const hasAttendance = activeAttendance.some(a => a.date === dayStr && a.checkIn);
-                const hasAnnualLeave = activeLeaves.some(l => l.type === 'Annual' && isLeaveActive(l, dayStr));
-                const hasSickLeave = activeLeaves.some(l => l.type === 'Sick/Emergency' && isLeaveActive(l, dayStr));
-                const isHoliday = uaeHolidays.some(h => h.date === dayStr);
-                const hasCustomEvent = calendarEvents.some(e => e.date === dayStr);
+                const hasAttendance = attendanceDates.has(dayStr);
+                const hasAnnualLeave = annualLeaveDates.has(dayStr);
+                const hasSickLeave = sickLeaveDates.has(dayStr);
+                const isHoliday = holidayDates.has(dayStr);
+                const hasCustomEvent = customEventDates.has(dayStr);
 
                 return (
                   <button 
@@ -191,7 +215,7 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          <div className="p-6 lg:p-8 flex-1 overflow-y-auto space-y-6 lg:space-y-8 bg-white">
+          <div className="p-6 lg:p-8 flex-1 overflow-y-auto overscroll-contain space-y-6 lg:space-y-8 bg-white">
 
             {/* Holidays */}
             {uaeHolidays.filter(h => h.date === dateStr).length > 0 && (

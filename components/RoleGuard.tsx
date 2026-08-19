@@ -16,7 +16,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   if (!authLoaded || !user || userRole === "employee") {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+      <div className="flex h-dvh w-full items-center justify-center bg-slate-50">
         <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
       </div>
     );
@@ -36,7 +36,7 @@ export function EmployeeGuard({ children }: { children: React.ReactNode }) {
 
   if (!authLoaded || !user) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+      <div className="flex h-dvh w-full items-center justify-center bg-slate-50">
         <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
       </div>
     );
