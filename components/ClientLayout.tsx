@@ -21,15 +21,15 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   if (isLogin || isReportView) {
     return (
-      <main className="flex-1 w-full bg-slate-50 overflow-y-auto overscroll-contain">{children}</main>
+      <main className="min-h-dvh w-full bg-slate-50 overflow-y-auto overscroll-contain">{children}</main>
     );
   }
 
   if (isEmployeePage) {
     return (
-      <div className="flex h-dvh w-full overflow-hidden">
-        <main className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
-          <div className="flex-1 overflow-y-auto overscroll-contain">
+      <div className="flex w-full lg:h-dvh lg:overflow-hidden">
+        <main className="flex-1 flex flex-col bg-slate-50 relative lg:overflow-hidden">
+          <div className="flex-1 lg:min-h-0 lg:overflow-y-auto overscroll-contain">
             <div className="p-4 lg:p-10 max-w-[1600px] mx-auto min-h-full">
               {children}
             </div>
@@ -40,11 +40,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden">
+    <div className="flex w-full lg:h-dvh lg:overflow-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <main className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
+      <main className="flex-1 flex flex-col bg-slate-50 relative lg:overflow-hidden">
         {/* Mobile Header */}
-        <header className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 z-30">
+        <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between p-4 bg-white border-b border-slate-200">
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setIsSidebarOpen(true)}
@@ -56,7 +56,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain">
+        <div className="flex-1 lg:min-h-0 lg:overflow-y-auto overscroll-contain">
           <div className="p-4 lg:p-10 max-w-[1600px] mx-auto min-h-full">
             <AdminGuard>
               {children}

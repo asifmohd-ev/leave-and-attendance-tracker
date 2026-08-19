@@ -31,7 +31,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased bg-white text-slate-900 selection:bg-accent/10 selection:text-accent`}
     >
-      <body suppressHydrationWarning className="h-full flex overflow-hidden bg-white font-sans">
+      <body suppressHydrationWarning className="min-h-dvh flex flex-col overflow-x-hidden bg-white font-sans">
         <FirebaseInitializer />
         <AuthProvider>
           <ClientLayout>
