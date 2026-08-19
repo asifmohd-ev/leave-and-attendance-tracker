@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { user, userRole, authLoaded } = useStore();
+  const user = useStore(s => s.user);
+  const userRole = useStore(s => s.userRole);
+  const authLoaded = useStore(s => s.authLoaded);
   const router = useRouter();
 
   useEffect(() => {
@@ -26,7 +28,9 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 }
 
 export function EmployeeGuard({ children }: { children: React.ReactNode }) {
-  const { user, userRole, authLoaded } = useStore();
+  const user = useStore(s => s.user);
+  const userRole = useStore(s => s.userRole);
+  const authLoaded = useStore(s => s.authLoaded);
   const router = useRouter();
 
   useEffect(() => {

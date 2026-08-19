@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { user, authLoaded } = useStore();
+  const user = useStore(s => s.user);
+  const authLoaded = useStore(s => s.authLoaded);
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);

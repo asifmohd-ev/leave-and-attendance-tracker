@@ -50,7 +50,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-      <div className="p-8 border-b border-slate-100 mb-4">
+      <div className="p-8 border-b border-slate-100 mb-4 shrink-0">
         <h1 className="text-lg font-bold text-slate-900 flex items-center gap-3">
           <div className="w-14 h-14 flex items-center justify-center shrink-0 transition-all transform hover:scale-110 duration-500">
             <Image src="/images/logo.png" alt="Logo" width={44} height={44} className="object-contain" />
@@ -62,7 +62,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         </h1>
       </div>
       
-      <nav className="flex-1 flex flex-col gap-1 px-4">
+      <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-1 px-4 py-2">
         {links.map((link) => {
           const Icon = link.icon;
           const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
@@ -86,7 +86,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       </nav>
       
       {user && (
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-3">
+        <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">
               {user.email?.charAt(0).toUpperCase()}
@@ -106,7 +106,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         </div>
       )}
       
-      <div className="p-6 border-t border-slate-50 text-[10px] text-slate-400 font-medium text-center tracking-tight">
+      <div className="p-6 border-t border-slate-50 text-[10px] text-slate-400 font-medium text-center tracking-tight shrink-0">
         Enterprise Workspace v5.0
       </div>
     </div>

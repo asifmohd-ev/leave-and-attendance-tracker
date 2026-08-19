@@ -20,7 +20,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   if (isLogin || isReportView) {
-    return <main className="flex-1 w-full bg-slate-50">{children}</main>;
+    return (
+      <main className="flex-1 w-full bg-slate-50 overflow-y-auto overscroll-contain">{children}</main>
+    );
   }
 
   if (isEmployeePage) {

@@ -69,7 +69,7 @@ export default function LeavePieChart({ selectedDate = new Date(), viewMode = "d
             outerRadius={85}
             paddingAngle={8}
             dataKey="value"
-            animationDuration={1500}
+            isAnimationActive={false}
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} stroke="#000000" strokeWidth={2} className="hover:opacity-80 transition-opacity" />

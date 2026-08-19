@@ -105,7 +105,7 @@ export default function AttendanceChart({ selectedDate = new Date(), viewMode = 
             dataKey="count"
             radius={[6, 6, 0, 0]}
             barSize={45}
-            animationDuration={1500}
+            isAnimationActive={false}
           >
             {data.map((entry, index) => {
               const isSelected = viewMode === "whole_data" || (entry.fullDate.startsWith("All") ? false : isSameDay(selectedDate, new Date(entry.fullDate)));
