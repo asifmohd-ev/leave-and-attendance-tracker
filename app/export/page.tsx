@@ -116,13 +116,30 @@ export default function ExportPage() {
     return fromDate === toDate ? `Date_${fromDate}` : `Range_${fromDate}_to_${toDate}`;
   };
 
-  const generateReportHTML = () => {
+  const loadLogoDataUri = async () => {
+    try {
+      const res = await fetch("/images/logo.png");
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise<string | null>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const generateReportHTML = async () => {
     const { records, globalAtt, globalAnn, globalSick, empCounts } = getFilteredData();
     const rangeLabel = (fromDate && toDate)
       ? (fromDate === toDate ? `Date: ${fromDate}` : `${fromDate} — ${toDate}`)
       : "All Records";
     const generatedAt = format(new Date(), 'MMM dd, yyyy HH:mm');
     const totalEvents = globalAtt + globalAnn + globalSick;
+    const logoDataUri = await loadLogoDataUri();
 
     const summaryRows = selectedEmps.map(empId => {
       const emp = activeEmployees.find(e => e.id === empId);
@@ -197,7 +214,7 @@ footer{background:#f8fafc;border-top:1px solid #f1f5f9;padding:24px 48px;text-al
 <body>
 <div class="page">
 <header>
-<div class="brand"><h1>ELEVATE VENTURES</h1><p>Workforce Reporting Suite</p></div>
+<div class="brand" style="display:flex;align-items:center;gap:16px">${logoDataUri ? `<img src="${logoDataUri}" alt="Elevate Ventures" style="width:52px;height:52px;border-radius:12px;background:#fff;padding:6px;object-fit:contain;flex-shrink:0"/>` : ''}<div><h1>ELEVATE VENTURES</h1><p>Workforce Reporting Suite</p></div></div>
 <div class="meta"><div class="range">${rangeLabel}</div><div class="gen">Generated: ${generatedAt}</div></div>
 </header>
 <div class="body">
@@ -231,7 +248,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
 
   const copyLink = async () => {
     try {
-      const htmlContent = generateReportHTML();
+      const htmlContent = await generateReportHTML();
       const rangeLabel = (fromDate && toDate)
         ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`)
         : "All Records";
@@ -439,8 +456,8 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     XLSX.writeFile(wb, `Personnel_Export_${getFileRangeName()}.xlsx`);
   };
 
-  const downloadHTML = () => {
-    const htmlContent = generateReportHTML();
+  const downloadHTML = async () => {
+    const htmlContent = await generateReportHTML();
     const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
