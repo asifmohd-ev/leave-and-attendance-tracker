@@ -4,7 +4,7 @@ import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Trash2, RotateCcw, User, CalendarOff, Shield, AlertTriangle } from "lucide-react";
+import { Trash2, RotateCcw, User, CalendarOff, Shield } from "lucide-react";
 import { format } from "date-fns";
 
 type DeletedUser = {
@@ -22,6 +22,7 @@ export default function RecycleBinPage() {
   const [deletedUsers, setDeletedUsers] = useState<DeletedUser[]>([]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const unsub = onSnapshot(collection(db, "system_users"), (snapshot) => {
       const allUsers = snapshot.docs.map((d) => ({ uid: d.id, ...d.data() } as DeletedUser));

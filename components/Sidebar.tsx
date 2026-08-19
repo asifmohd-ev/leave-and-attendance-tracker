@@ -3,29 +3,36 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CalendarCheck, CalendarOff, CalendarDays, FileDown, LogOut, ShieldAlert, Trash2 } from "lucide-react";
+import { LayoutDashboard, Users, CalendarCheck, CalendarOff, CalendarDays, FileDown, LogOut, ShieldAlert, Trash2, Send, Clock } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { useStore } from "@/lib/store";
 
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
-  const { user } = useStore();
+  const { user, userRole } = useStore();
+  const isEmployee = userRole === "employee";
 
   const handleLogout = async () => {
     await signOut(auth);
   };
 
-  const links = [
+  const allLinks = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Attendance", href: "/attendance", icon: CalendarCheck },
     { name: "Leaves", href: "/leaves", icon: CalendarOff },
+    { name: "Leave Requests", href: "/leave-requests", icon: Send },
     { name: "Calendar", href: "/calendar", icon: CalendarDays },
     { name: "Employees", href: "/employees", icon: Users },
+    { name: "My Leave", href: "/my-leave", icon: Clock },
     { name: "Export", href: "/export", icon: FileDown },
     { name: "Settings", href: "/users", icon: ShieldAlert },
     { name: "Recycle Bin", href: "/recycle-bin", icon: Trash2 },
   ];
+
+  const links = isEmployee
+    ? allLinks.filter(l => l.href === "/my-leave")
+    : allLinks;
 
   return (
     <>

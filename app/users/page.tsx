@@ -4,7 +4,7 @@ import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { initializeApp, getApps, getApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc } from "firebase/firestore";
 import { db, app } from "@/lib/firebase";
 import { ShieldAlert, Trash2, UserPlus, Shield, Loader2 } from "lucide-react";
 import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
@@ -87,15 +87,6 @@ export default function UsersPage() {
     } catch (err: unknown) {
       const error = err as Error;
       alert("Error removing user: " + error.message);
-    }
-  };
-
-  const handleRestoreUser = async (uid: string) => {
-    try {
-      await updateDoc(doc(db, "system_users", uid), { deletedAt: null });
-    } catch (err: unknown) {
-      const error = err as Error;
-      alert("Error restoring user: " + error.message);
     }
   };
 

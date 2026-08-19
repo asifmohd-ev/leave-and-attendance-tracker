@@ -4,7 +4,7 @@ import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, isWithinInterval, parseISO, eachDayOfInterval } from "date-fns";
 import { isBusinessDay } from "@/lib/dateUtils";
-import { Calendar, Users, Settings2, Download, CheckSquare, Table, Zap, Share2, Check } from "lucide-react";
+import { Calendar, Users, Settings2, Download, CheckSquare, Table, Zap, Share2, Check, FileCode } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -32,7 +32,7 @@ export default function ExportPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    setSelectedEmps(activeEmployees.map(e => e.id));
+    setSelectedEmps(employees.filter(e => !e.deletedAt).map(e => e.id));
   }, [employees]);
 
   if (!mounted) return null;
@@ -237,7 +237,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         : "All Records";
 
       const sid = await saveReportConfig({ htmlContent, rangeLabel });
-      const shortLink = `${window.location.origin}/report/view?sid=${sid}`;
+      const shortLink = `${window.location.origin}/report-view?sid=${sid}`;
       const clipboardText = `HR Personnel Report (${rangeLabel}): ${shortLink}`;
 
       await navigator.clipboard.writeText(clipboardText);
@@ -439,6 +439,19 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     XLSX.writeFile(wb, `Personnel_Export_${getFileRangeName()}.xlsx`);
   };
 
+  const downloadHTML = () => {
+    const htmlContent = generateReportHTML();
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Personnel_Report_${getFileRangeName()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto pb-10">
       <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-4">
@@ -462,6 +475,13 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
             className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm"
           >
             <Table size={18} strokeWidth={2.5}/> Excel Export
+          </button>
+          <button 
+            onClick={downloadHTML}
+            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incSummary)}
+            className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <FileCode size={18} strokeWidth={2.5}/> Download HTML
           </button>
           <button 
             onClick={generatePDF}

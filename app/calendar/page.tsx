@@ -1,21 +1,25 @@
 "use client";
 
-import { useStore } from "@/lib/store";
+import { useStore, type Leave } from "@/lib/store";
 import { useState, useEffect } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, isWithinInterval, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay, isWithinInterval, parseISO } from "date-fns";
 import { isBusinessDay } from "@/lib/dateUtils";
-import { ChevronLeft, ChevronRight, UserCheck, CalendarOff, ShieldAlert, CircleDashed } from "lucide-react";
+import { uaeHolidays } from "@/lib/uaeHolidays";
+import { ChevronLeft, ChevronRight, UserCheck, ShieldAlert, CircleDashed, CalendarPlus, X, Flag } from "lucide-react";
 
 export default function CalendarPage() {
   const [mounted, setMounted] = useState(false);
-  const { employees, attendance, leaves } = useStore();
+  const { employees, attendance, leaves, calendarEvents, addCalendarEvent, removeCalendarEvent } = useStore();
 
   const activeEmployees = employees.filter(e => !e.deletedAt);
   const activeAttendance = attendance.filter(a => !a.deletedAt);
   const activeLeaves = leaves.filter(l => !l.deletedAt);
-  
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventTitle, setEventTitle] = useState("");
+  const [eventDesc, setEventDesc] = useState("");
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
@@ -25,13 +29,12 @@ export default function CalendarPage() {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
-  
-  const isLeaveActive = (l: any, targetDateStr: string) => {
+
+  const isLeaveActive = (l: Leave, targetDateStr: string) => {
     if (!isBusinessDay(parseISO(targetDateStr))) return false;
-    const start = l.startDate || l.date;
-    const end = l.endDate || start;
+    const start = l.startDate;
+    const end = l.endDate;
     if (!start) return false;
     try {
       return isWithinInterval(parseISO(targetDateStr), { start: parseISO(start), end: parseISO(end) });
@@ -40,7 +43,6 @@ export default function CalendarPage() {
     }
   };
 
-  // Details for selected Date
   const attendedToday = activeAttendance.filter(a => a.date === dateStr && a.checkIn).map(a => ({
     record: a,
     emp: activeEmployees.find(e => e.id === a.employeeId)
@@ -53,6 +55,21 @@ export default function CalendarPage() {
 
   const annualLeaves = leavesToday.filter(l => l.record.type === 'Annual');
   const sickLeaves = leavesToday.filter(l => l.record.type === 'Sick/Emergency');
+
+  // UAE holidays for this month
+  const holidaysThisMonth = uaeHolidays.filter(h => h.date.startsWith(format(currentMonth, 'yyyy-MM')));
+
+  // Custom events for selected date
+  const eventsOnSelected = calendarEvents.filter(e => e.date === dateStr);
+
+  const handleAddEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventTitle.trim()) return;
+    addCalendarEvent(eventTitle.trim(), dateStr, eventDesc.trim());
+    setEventTitle("");
+    setEventDesc("");
+    setShowEventModal(false);
+  };
 
   return (
     <div className="space-y-6 lg:space-y-10 animate-in fade-in duration-700 max-w-7xl mx-auto lg:h-[calc(100vh-100px)] flex flex-col pb-6 lg:overflow-hidden">
@@ -86,6 +103,17 @@ export default function CalendarPage() {
             </div>
           </div>
 
+          {/* Holiday Legend */}
+          {holidaysThisMonth.length > 0 && (
+            <div className="px-4 sm:px-6 lg:px-8 pt-4 pb-2 flex flex-wrap gap-2">
+              {holidaysThisMonth.map(h => (
+                <span key={h.date} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-600 text-[9px] font-bold rounded-lg">
+                  <Flag size={10} /> {format(new Date(h.date), 'MMM dd')} - {h.name}
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto bg-white relative">
             <div className="grid grid-cols-7 gap-1 sm:gap-3 mb-4 sm:mb-6">
               {['SUN','MON','TUE','WED','THU','FRI','SAT'].map(d => (
@@ -106,6 +134,8 @@ export default function CalendarPage() {
                 const hasAttendance = activeAttendance.some(a => a.date === dayStr && a.checkIn);
                 const hasAnnualLeave = activeLeaves.some(l => l.type === 'Annual' && isLeaveActive(l, dayStr));
                 const hasSickLeave = activeLeaves.some(l => l.type === 'Sick/Emergency' && isLeaveActive(l, dayStr));
+                const isHoliday = uaeHolidays.some(h => h.date === dayStr);
+                const hasCustomEvent = calendarEvents.some(e => e.date === dayStr);
 
                 return (
                   <button 
@@ -116,22 +146,32 @@ export default function CalendarPage() {
                         ? 'bg-teal-50 border-teal-600 shadow-md shadow-teal-50 z-10' 
                         : _isToday 
                           ? 'bg-white border-teal-200' 
-                          : 'bg-white border-slate-100 hover:border-slate-200'
+                          : isHoliday
+                            ? 'bg-indigo-50/40 border-indigo-200'
+                            : 'bg-white border-slate-100 hover:border-slate-200'
                     }`}
                   >
                     <div className="flex justify-between items-start mb-auto w-full">
                       <span className={`text-[10px] sm:text-[11px] font-bold flex items-center justify-center w-5 h-5 sm:w-7 sm:h-7 rounded-md sm:rounded-lg transition-all mx-auto sm:mx-0 ${
-                        _isSelected ? 'bg-teal-600 text-white' : _isToday ? 'bg-teal-50 text-teal-600' : 'text-slate-500 sm:text-slate-300'
+                        _isSelected ? 'bg-teal-600 text-white' : _isToday ? 'bg-teal-50 text-teal-600' : isHoliday ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500 sm:text-slate-300'
                       }`}>
                         {format(day, 'd')}
                       </span>
                     </div>
                     
-                    <div className="flex items-center gap-0.5 sm:gap-1.5 justify-center sm:justify-end w-full mt-1 sm:mt-0">
+                    <div className="flex items-center gap-0.5 sm:gap-1.5 justify-center sm:justify-end w-full mt-1 sm:mt-0 flex-wrap">
                       {hasAttendance && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-teal-500" title="Present" />}
                       {hasAnnualLeave && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-amber-400" title="Annual Leave" />}
                       {hasSickLeave && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-rose-400" title="Sick Leave" />}
+                      {isHoliday && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-indigo-400" title="Public Holiday" />}
+                      {hasCustomEvent && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-purple-400" title="Custom Event" />}
                     </div>
+                    
+                    {isHoliday && (
+                      <div className="hidden sm:block absolute -top-1 -right-1">
+                        <Flag size={10} className="text-indigo-500" strokeWidth={3} />
+                      </div>
+                    )}
                   </button>
                 );
               })}
@@ -141,13 +181,55 @@ export default function CalendarPage() {
 
         {/* Right Pane: Daily Summary */}
         <div className="w-full lg:w-2/5 xl:w-[35%] bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col min-h-[400px]">
-          <div className="p-6 lg:p-8 border-b border-slate-50 bg-slate-50/30">
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Daily Summary</h2>
-            <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{format(selectedDate, 'EEEE, MMM do')}</p>
+          <div className="p-6 lg:p-8 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
+            <div>
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Daily Summary</h2>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{format(selectedDate, 'EEEE, MMM do')}</p>
+            </div>
+            <button onClick={() => setShowEventModal(true)} className="p-2.5 text-purple-600 hover:bg-purple-50 border border-purple-200 rounded-lg transition-all" title="Add Event">
+              <CalendarPlus size={18} strokeWidth={2.5} />
+            </button>
           </div>
 
-          <div className="p-6 lg:p-8 flex-1 overflow-y-auto space-y-8 lg:space-y-10 bg-white">
-            
+          <div className="p-6 lg:p-8 flex-1 overflow-y-auto space-y-6 lg:space-y-8 bg-white">
+
+            {/* Holidays */}
+            {uaeHolidays.filter(h => h.date === dateStr).length > 0 && (
+              <section className="space-y-3">
+                <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-50 pb-3">
+                  <Flag size={16} strokeWidth={2.5} className="text-indigo-500" /> Public Holidays
+                </h3>
+                {uaeHolidays.filter(h => h.date === dateStr).map(h => (
+                  <div key={h.date} className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">UAE</div>
+                    <span className="font-bold text-sm text-indigo-800">{h.name}</span>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {/* Custom Events */}
+            {eventsOnSelected.length > 0 && (
+              <section className="space-y-3">
+                <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-50 pb-3">
+                  <span className="flex items-center gap-2"><CalendarPlus size={16} strokeWidth={2.5} className="text-purple-500" /> Events</span>
+                </h3>
+                <div className="space-y-2">
+                  {eventsOnSelected.map(ev => (
+                    <div key={ev.id} className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-xl">
+                      <div>
+                        <p className="text-sm font-bold text-purple-800">{ev.title}</p>
+                        {ev.description && <p className="text-xs text-purple-600 mt-0.5">{ev.description}</p>}
+                      </div>
+                      <button onClick={() => removeCalendarEvent(ev.id)} className="p-1.5 text-purple-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
+                        <X size={14} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Presence */}
             <section className="space-y-5">
               <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-50 pb-3">
@@ -226,6 +308,46 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
+
+      {/* Add Event Modal */}
+      {showEventModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white shadow-2xl border border-slate-200 rounded-3xl w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b border-slate-50 flex items-center gap-4 bg-purple-50/30">
+              <div className="w-12 h-12 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-500 shadow-sm">
+                <CalendarPlus size={20} strokeWidth={2.5} />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Add Event</h2>
+                <p className="text-slate-500 text-xs mt-0.5">{format(selectedDate, 'EEEE, MMM dd, yyyy')}</p>
+              </div>
+              <button onClick={() => setShowEventModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
+                <X size={18} strokeWidth={2.5} />
+              </button>
+            </div>
+            <form onSubmit={handleAddEvent} className="p-6 space-y-5">
+              <div className="space-y-2">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Event Title</label>
+                <input type="text" required value={eventTitle} onChange={(e) => setEventTitle(e.target.value)}
+                  className="w-full px-5 py-3.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl focus:border-purple-400 outline-none font-semibold text-sm"
+                  placeholder="e.g. Team Meeting" autoFocus />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Description (Optional)</label>
+                <textarea value={eventDesc} onChange={(e) => setEventDesc(e.target.value)} rows={3}
+                  className="w-full px-5 py-3.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl focus:border-purple-400 outline-none font-semibold text-sm resize-none"
+                  placeholder="Add details..." />
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button type="button" onClick={() => setShowEventModal(false)}
+                  className="flex-1 py-3.5 font-bold text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs">Cancel</button>
+                <button type="submit"
+                  className="flex-1 py-3.5 font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl text-xs shadow-md shadow-purple-100">Add Event</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

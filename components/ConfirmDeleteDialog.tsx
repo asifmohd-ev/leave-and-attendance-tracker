@@ -53,7 +53,7 @@ export default function ConfirmDeleteDialog({ isOpen, onClose, onConfirm, itemNa
           </div>
           <div className="space-y-2">
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-              Type "<span className="text-rose-500">{itemName}</span>" to confirm
+              Type &quot;<span className="text-rose-500">{itemName}</span>&quot; to confirm
             </label>
             <input
               type="text"

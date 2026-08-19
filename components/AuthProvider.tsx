@@ -16,7 +16,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  const isPublicPath = pathname === "/login" || pathname === "/report/view";
+  const isPublicPath = pathname === "/login" || pathname === "/report/view" || pathname.startsWith("/report-view");
 
   useEffect(() => {
     if (!mounted) return;

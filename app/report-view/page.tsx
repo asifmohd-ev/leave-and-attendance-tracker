@@ -1,14 +1,11 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
-
 import { useStore } from "@/lib/store";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Shield, ArrowLeft, Printer } from "lucide-react";
 import Link from "next/link";
 
-// --- HTML Snapshot Viewer (for shared links via sid) ---
 function SnapshotViewer({ sid }: { sid: string }) {
   const { getReportConfig } = useStore();
   const [html, setHtml] = useState<string | null>(null);
@@ -35,9 +32,7 @@ function SnapshotViewer({ sid }: { sid: string }) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-6">
         <div className="w-16 h-16 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin" />
-        <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] animate-pulse">
-          Decrypting Workforce Intelligence...
-        </p>
+        <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] animate-pulse">Loading Report...</p>
       </div>
     );
   }
@@ -47,74 +42,52 @@ function SnapshotViewer({ sid }: { sid: string }) {
       <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4 p-8">
         <Shield size={40} className="text-slate-200" />
         <p className="text-slate-400 font-bold text-sm">This report link is invalid or has expired.</p>
-        <Link href="/" className="text-teal-600 text-xs font-bold uppercase tracking-widest hover:underline">
-          Go to Dashboard
-        </Link>
+        <Link href="/" className="text-teal-600 text-xs font-bold uppercase tracking-widest hover:underline">Go to Dashboard</Link>
       </div>
     );
   }
 
   return (
     <div>
-      {/* Print toolbar — hidden when printing */}
       <div className="print:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-100 shadow-sm px-6 py-3 flex items-center justify-between">
-        <Link
-          href="/export"
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold text-xs uppercase tracking-widest transition-all"
-        >
+        <Link href="/export" className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold text-xs uppercase tracking-widest transition-all">
           <ArrowLeft size={14} /> Back to Export
         </Link>
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg"
-        >
+        <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg">
           <Printer size={14} /> Print / Save PDF
         </button>
       </div>
-      {/* Render the stored HTML snapshot */}
-      <div
-        className="pt-14 print:pt-0"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      <div className="pt-14 print:pt-0" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }
 
-// --- Dynamic Viewer (legacy long-link support) ---
 function ReportViewerContent() {
   const searchParams = useSearchParams();
   const sid = searchParams.get("sid");
 
-  // If short ID is present, render the HTML snapshot
   if (sid) {
     return <SnapshotViewer sid={sid} />;
   }
 
-  // Legacy long-link fallback — just show a message since this path is deprecated
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4 p-8">
       <Shield size={40} className="text-slate-200" />
       <p className="text-slate-400 font-bold text-sm">This link format is no longer supported.</p>
       <p className="text-slate-300 text-xs">Please generate a new share link from the Export page.</p>
-      <Link href="/export" className="text-teal-600 text-xs font-bold uppercase tracking-widest hover:underline mt-2">
-        Go to Export
-      </Link>
+      <Link href="/export" className="text-teal-600 text-xs font-bold uppercase tracking-widest hover:underline mt-2">Go to Export</Link>
     </div>
   );
 }
 
 export default function ReportViewer() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-6">
-          <div className="w-16 h-16 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin" />
-          <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] animate-pulse">
-            Loading Report...
-          </p>
-        </div>
-      }
-    >
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-6">
+        <div className="w-16 h-16 border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin" />
+        <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] animate-pulse">Loading Report...</p>
+      </div>
+    }>
       <ReportViewerContent />
     </Suspense>
   );

@@ -67,7 +67,7 @@ export default function EmployeeProfilePage() {
           else totalSick += 1;
         }
       });
-    } catch (e: unknown) {
+    } catch {
       // Fallback
     }
   });

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { Shield, Loader2, KeyRound } from "lucide-react";
 
 export default function LoginPage() {
@@ -19,8 +20,19 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
+      const userCred = await signInWithEmailAndPassword(auth, email, password);
+      // Check user role
+      const userDoc = await getDoc(doc(db, "system_users", userCred.user.uid));
+      if (userDoc.exists()) {
+        const role = userDoc.data().role;
+        if (role === "employee") {
+          router.push("/my-leave");
+        } else {
+          router.push("/");
+        }
+      } else {
+        router.push("/");
+      }
     } catch (err: unknown) {
       const error = err as Error;
       setError(error.message || "Failed to log in");

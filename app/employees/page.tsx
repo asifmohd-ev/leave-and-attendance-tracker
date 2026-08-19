@@ -2,15 +2,24 @@
 
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
-import { Plus, Trash2, User, ChevronRight, Edit2 } from "lucide-react";
+import { Plus, Trash2, User, ChevronRight, Edit2, KeyRound, Loader2 } from "lucide-react";
 import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
 import Link from "next/link";
 import { format } from "date-fns";
+import { initializeApp, getApps, getApp, deleteApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc, updateDoc, setDoc } from "firebase/firestore";
+import { db, app } from "@/lib/firebase";
 
 export default function EmployeesPage() {
   const [mounted, setMounted] = useState(false);
   const [isModalOpen, setModalOpen] = useState(false);
   const { employees, addEmployee, removeEmployee, updateEmployee } = useStore();
+  const [accountModal, setAccountModal] = useState<{ empId: string; empName: string } | null>(null);
+  const [accEmail, setAccEmail] = useState("");
+  const [accPassword, setAccPassword] = useState("");
+  const [accLoading, setAccLoading] = useState(false);
+  const [accError, setAccError] = useState("");
   
   const [name, setName] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
@@ -19,7 +28,6 @@ export default function EmployeesPage() {
 
   const activeEmployees = employees.filter(e => !e.deletedAt);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
@@ -112,6 +120,18 @@ export default function EmployeesPage() {
                    <button onClick={() => openEditModal(emp)} className="p-2 text-slate-400 hover:text-teal-600 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
                      <Edit2 size={16} strokeWidth={2.5} />
                    </button>
+                   {!emp.authUid && (
+                     <button onClick={() => { setAccountModal({ empId: emp.id, empName: emp.name }); setAccEmail(""); setAccPassword(""); setAccError(""); }}
+                       className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all border border-transparent hover:border-purple-100"
+                       title="Create Login Account">
+                       <KeyRound size={16} strokeWidth={2.5} />
+                     </button>
+                   )}
+                   {emp.authUid && (
+                     <span className="p-2 text-emerald-400" title="Account created">
+                       <KeyRound size={16} strokeWidth={2.5} />
+                     </span>
+                   )}
                    <button onClick={() => setDeleteTarget({ id: emp.id, name: emp.name })} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
                      <Trash2 size={16} strokeWidth={2.5} />
                    </button>
@@ -194,6 +214,80 @@ export default function EmployeesPage() {
         itemName={deleteTarget?.name || ""}
         itemType="Employee"
       />
+
+      {/* Create Account Modal */}
+      {accountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white shadow-2xl border border-slate-200 rounded-3xl w-full max-w-md overflow-hidden">
+            <div className="p-8 border-b border-slate-50 flex items-center gap-5 bg-purple-50/30">
+              <div className="w-12 h-12 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-500 shadow-sm">
+                <KeyRound size={20} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Create Account</h2>
+                <p className="text-slate-500 text-xs mt-0.5">for {accountModal.empName}</p>
+              </div>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setAccLoading(true);
+              setAccError("");
+              const secondaryApp = getApps().find(a => a.name === "EmpAccountApp")
+                ? getApp("EmpAccountApp")
+                : initializeApp(app.options, "EmpAccountApp");
+              try {
+                const secondaryAuth = getAuth(secondaryApp);
+                const userCred = await createUserWithEmailAndPassword(secondaryAuth, accEmail, accPassword);
+                if (userCred.user) {
+                  await updateProfile(userCred.user, { displayName: accountModal.empName });
+                  await setDoc(doc(db, "system_users", userCred.user.uid), {
+                    name: accountModal.empName,
+                    email: accEmail,
+                    role: "employee",
+                    employeeId: accountModal.empId,
+                    createdAt: new Date().toISOString()
+                  });
+                  await updateDoc(doc(db, "employees", accountModal.empId), { authUid: userCred.user.uid });
+                }
+                await secondaryAuth.signOut();
+                setAccountModal(null);
+              } catch (err: unknown) {
+                setAccError((err as Error).message || "Failed to create account.");
+              } finally {
+                await deleteApp(secondaryApp).catch(() => {});
+                setAccLoading(false);
+              }
+            }} className="p-8 space-y-6">
+              {accError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-xl text-xs font-semibold">{accError}</div>
+              )}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Email</label>
+                  <input type="email" required value={accEmail} onChange={(e) => setAccEmail(e.target.value)}
+                    className="w-full px-5 py-3.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl focus:border-purple-400 outline-none font-semibold text-sm"
+                    placeholder="employee@company.com" autoFocus />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Password</label>
+                  <input type="password" required value={accPassword} onChange={(e) => setAccPassword(e.target.value)} minLength={6}
+                    className="w-full px-5 py-3.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl focus:border-purple-400 outline-none font-semibold text-sm"
+                    placeholder="Min 6 characters" />
+                </div>
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button type="button" onClick={() => setAccountModal(null)}
+                  className="flex-1 py-3.5 font-bold text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs">Cancel</button>
+                <button type="submit" disabled={accLoading}
+                  className="flex-1 py-3.5 font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl text-xs shadow-md shadow-purple-100 disabled:opacity-70 flex items-center justify-center gap-2">
+                  {accLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                  Create Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
