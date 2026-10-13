@@ -30,6 +30,7 @@ export default function ExportPage() {
   const [incAttendance, setIncAttendance] = useState(true);
   const [incAnnual, setIncAnnual] = useState(true);
   const [incSick, setIncSick] = useState(true);
+  const [incAbsent, setIncAbsent] = useState(true);
   const [incSummary, setIncSummary] = useState(true);
 
   useEffect(() => {
@@ -65,7 +66,8 @@ export default function ExportPage() {
     let globalAtt = 0;
     let globalAnn = 0;
     let globalSick = 0;
-    const empCounts: Record<string, { att: number, ann: number, sick: number }> = {};
+    let globalAbs = 0;
+    const empCounts: Record<string, { att: number, ann: number, sick: number, abs: number }> = {};
 
     selectedEmps.forEach(empId => {
       const emp = activeEmployees.find(e => e.id === empId);
@@ -74,6 +76,7 @@ export default function ExportPage() {
       const atts = activeAttendance.filter(a => a.employeeId === empId && a.checkIn && isDateInRange(a.date));
       const rawAnns = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Annual');
       const rawSicks = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency');
+      const rawAbs = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Absent');
 
       const anns: string[] = [];
       rawAnns.forEach(l => {
@@ -97,19 +100,32 @@ export default function ExportPage() {
         });
       });
 
-      empCounts[empId] = { att: atts.length, ann: anns.length, sick: sicks.length };
+      const abss: string[] = [];
+      rawAbs.forEach(l => {
+        const start = l.startDate || (l as { date?: string }).date;
+        const end = l.endDate || start;
+        if (!start || !end) return;
+        eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
+          const dStr = format(d, 'yyyy-MM-dd');
+          if (isDateInRange(dStr) && isBusinessDay(d)) abss.push(dStr);
+        });
+      });
+
+      empCounts[empId] = { att: atts.length, ann: anns.length, sick: sicks.length, abs: abss.length };
 
       globalAtt += atts.length;
       globalAnn += anns.length;
       globalSick += sicks.length;
+      globalAbs += abss.length;
 
       if (incAttendance) atts.forEach(a => records.push({ Emp: emp.name, Date: a.date, Type: 'Attendance', Details: `IN: ${a.checkIn} ${a.checkOut ? `OUT: ${a.checkOut}` : ''}` }));
       if (incAnnual) anns.forEach(dStr => records.push({ Emp: emp.name, Date: dStr, Type: 'Annual Leave', Details: 'Full Day' }));
       if (incSick) sicks.forEach(dStr => records.push({ Emp: emp.name, Date: dStr, Type: 'Sick Leave', Details: 'Full Day' }));
+      if (incAbsent) abss.forEach(dStr => records.push({ Emp: emp.name, Date: dStr, Type: 'Absent', Details: 'Full Day' }));
     });
     
     records.sort((a,b) => new Date(a.Date).getTime() - new Date(b.Date).getTime());
-    return { records, globalAtt, globalAnn, globalSick, empCounts };
+    return { records, globalAtt, globalAnn, globalSick, globalAbs, empCounts };
   };
 
   const getFileRangeName = () => {
@@ -136,19 +152,19 @@ export default function ExportPage() {
   };
 
   const generateReportHTML = async () => {
-    const { records, globalAtt, globalAnn, globalSick, empCounts } = getFilteredData();
+    const { records, globalAtt, globalAnn, globalSick, globalAbs, empCounts } = getFilteredData();
     const rangeLabel = (fromDate && toDate)
       ? (fromDate === toDate ? `Date: ${fromDate}` : `${fromDate} — ${toDate}`)
       : "All Records";
     const generatedAt = format(new Date(), 'MMM dd, yyyy HH:mm');
-    const totalEvents = globalAtt + globalAnn + globalSick;
+    const totalEvents = globalAtt + globalAnn + globalSick + globalAbs;
     const logoDataUri = await loadLogoDataUri();
 
     const summaryRows = selectedEmps.map(empId => {
       const emp = activeEmployees.find(e => e.id === empId);
       if (!emp) return '';
-      const c = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
-      return `<tr><td>${emp.name}</td><td>${c.att}</td><td>${c.ann}</td><td>${c.sick}</td></tr>`;
+      const c = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0 };
+      return `<tr><td>${emp.name}</td><td>${c.att}</td><td>${c.ann}</td><td>${c.sick}</td><td>${c.abs}</td></tr>`;
     }).join('');
 
     const activityLogs = selectedEmps.map(empId => {
@@ -157,7 +173,7 @@ export default function ExportPage() {
       const empRecs = records.filter(r => r.Emp === emp.name);
       if (empRecs.length === 0) return '';
       const rows = empRecs.map(r => {
-        const badge = r.Type.includes('Annual') ? 'badge-annual' : r.Type.includes('Sick') ? 'badge-sick' : 'badge-att';
+        const badge = r.Type.includes('Annual') ? 'badge-annual' : r.Type.includes('Sick') ? 'badge-sick' : r.Type.includes('Absent') ? 'badge-abs' : 'badge-att';
         return `<tr><td>${r.Date}</td><td><span class="badge ${badge}">${r.Type}</span></td><td>${r.Details}</td></tr>`;
       }).join('');
       return `<div class="emp-section"><div class="emp-header"><h3>${emp.name}</h3><span class="emp-id">ID: ${emp.id.slice(0,8)}</span></div><table><thead><tr><th>Date</th><th>Type</th><th>Details</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -166,6 +182,7 @@ export default function ExportPage() {
     const barAtt = totalEvents > 0 ? `${(globalAtt/totalEvents*100).toFixed(1)}%` : '0%';
     const barAnn = totalEvents > 0 ? `${(globalAnn/totalEvents*100).toFixed(1)}%` : '0%';
     const barSick = totalEvents > 0 ? `${(globalSick/totalEvents*100).toFixed(1)}%` : '0%';
+    const barAbs = totalEvents > 0 ? `${(globalAbs/totalEvents*100).toFixed(1)}%` : '0%';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -190,10 +207,11 @@ header{background:#0d9488;color:#fff;padding:40px 48px;display:flex;justify-cont
 .bar-att{background:#14b8a6;height:100%}
 .bar-ann{background:#f59e0b;height:100%}
 .bar-sick{background:#f43f5e;height:100%}
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:16px}
+.bar-abs{background:#64748b;height:100%}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:16px}
 .metric{display:flex;align-items:center;gap:10px}
 .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.dot-att{background:#14b8a6}.dot-ann{background:#f59e0b}.dot-sick{background:#f43f5e}
+.dot-att{background:#14b8a6}.dot-ann{background:#f59e0b}.dot-sick{background:#f43f5e}.dot-abs{background:#64748b}
 .metric-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#94a3b8}
 .metric-val{font-size:22px;font-weight:800;color:#0f172a}
 .metric-unit{font-size:11px;color:#94a3b8;font-weight:500}
@@ -209,6 +227,7 @@ tbody td{padding:14px 8px;color:#334155;font-weight:500}
 .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;border:1px solid}
 .badge-annual{background:#fefce8;border-color:#fde68a;color:#92400e}
 .badge-sick{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
+.badge-abs{background:#f1f5f9;border-color:#cbd5e1;color:#334155}
 .badge-att{background:#f0fdfa;border-color:#99f6e4;color:#134e4a}
 footer{background:#f8fafc;border-top:1px solid #f1f5f9;padding:24px 48px;text-align:center;font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.15em}
 @media print{body{padding:0;background:#fff}.page{box-shadow:none;border-radius:0}}
@@ -225,18 +244,19 @@ ${incSummary && selectedEmps.length > 0 ? `
 <section>
 <div class="section-title">Executive Metrics</div>
 ${totalEvents > 0 ? `
-<div class="bar-wrap"><div class="bar-att" style="width:${barAtt}"></div><div class="bar-ann" style="width:${barAnn}"></div><div class="bar-sick" style="width:${barSick}"></div></div>
+<div class="bar-wrap"><div class="bar-att" style="width:${barAtt}"></div><div class="bar-ann" style="width:${barAnn}"></div><div class="bar-sick" style="width:${barSick}"></div><div class="bar-abs" style="width:${barAbs}"></div></div>
 <div class="metrics">
 <div class="metric"><div class="dot dot-att"></div><div><div class="metric-label">Active Presence</div><div class="metric-val">${globalAtt} <span class="metric-unit">days</span></div></div></div>
 <div class="metric"><div class="dot dot-ann"></div><div><div class="metric-label">Annual Leaves</div><div class="metric-val">${globalAnn} <span class="metric-unit">days</span></div></div></div>
 <div class="metric"><div class="dot dot-sick"></div><div><div class="metric-label">Sick/Emergency</div><div class="metric-val">${globalSick} <span class="metric-unit">days</span></div></div></div>
+<div class="metric"><div class="dot dot-abs"></div><div><div class="metric-label">Absent Days</div><div class="metric-val">${globalAbs} <span class="metric-unit">days</span></div></div></div>
 </div>` : ''}
 <table style="margin-top:24px">
-<thead><tr><th>Employee Name</th><th>Active Days</th><th>Annual Leaves</th><th>Sick Leaves</th></tr></thead>
+<thead><tr><th>Employee Name</th><th>Active Days</th><th>Annual Leaves</th><th>Sick Leaves</th><th>Absent Days</th></tr></thead>
 <tbody>${summaryRows}</tbody>
 </table>
 </section>` : ''}
-${(incAttendance || incAnnual || incSick) && activityLogs ? `
+${(incAttendance || incAnnual || incSick || incAbsent) && activityLogs ? `
 <section>
 <div class="section-title">Branded Activity Logs</div>
 ${activityLogs}
@@ -271,7 +291,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
   const generatePDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
-    const { records, globalAtt, globalAnn, globalSick, empCounts } = getFilteredData();
+    const { records, globalAtt, globalAnn, globalSick, globalAbs, empCounts } = getFilteredData();
     
     // Load Logo with Promise for async handling
     const loadImg = (url: string): Promise<HTMLImageElement> => {
@@ -330,7 +350,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
 
       currentY += 12;
       
-      const totalEvents = globalAtt + globalAnn + globalSick;
+      const totalEvents = globalAtt + globalAnn + globalSick + globalAbs;
       if (totalEvents > 0) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
@@ -339,14 +359,17 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         const wAtt = (globalAtt / totalEvents) * barWidth;
         const wAnn = (globalAnn / totalEvents) * barWidth;
         const wSick = (globalSick / totalEvents) * barWidth;
+        const wAbs = (globalAbs / totalEvents) * barWidth;
 
-        // Brand Palette: Teal, Amber, Rose
+        // Brand Palette: Teal, Amber, Rose, Slate
         doc.setFillColor(13, 148, 136); // Teal (Company)
         doc.rect(15, currentY, wAtt, 10, 'F');
         doc.setFillColor(217, 119, 6); // Amber
         doc.rect(15 + wAtt, currentY, wAnn, 10, 'F');
         doc.setFillColor(225, 29, 72); // Rose
         doc.rect(15 + wAtt + wAnn, currentY, wSick, 10, 'F');
+        doc.setFillColor(100, 116, 139); // Slate
+        doc.rect(15 + wAtt + wAnn + wSick, currentY, wAbs, 10, 'F');
         
         // Legend
         currentY += 18;
@@ -362,19 +385,23 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         doc.rect(100, currentY - 3, 3, 3, 'F');
         doc.text(`Sick/Emergency: ${globalSick}`, 106, currentY);
 
+        doc.setFillColor(100, 116, 139);
+        doc.rect(150, currentY - 3, 3, 3, 'F');
+        doc.text(`Absent: ${globalAbs}`, 156, currentY);
+
         currentY += 12;
       }
       
       const summaryBody = selectedEmps.map(empId => {
         const emp = activeEmployees.find(e => e.id === empId);
         if(!emp) return [];
-        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
-        return [emp.name, counts.att.toString(), counts.ann.toString(), counts.sick.toString()];
+        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0 };
+        return [emp.name, counts.att.toString(), counts.ann.toString(), counts.sick.toString(), counts.abs.toString()];
       }).filter(x => x.length > 0);
 
       autoTable(doc, {
         startY: currentY,
-        head: [['EMPLOYEE NAME', 'ACTIVE DAYS', 'ANNUAL LEAVES', 'SICK LEAVES']],
+        head: [['EMPLOYEE NAME', 'ACTIVE DAYS', 'ANNUAL LEAVES', 'SICK LEAVES', 'ABSENT DAYS']],
         body: summaryBody,
         theme: 'striped',
         headStyles: { fillColor: [248, 250, 252], textColor: [71, 85, 105], fontStyle: 'bold', lineWidth: 0.1, lineColor: [226, 232, 240] },
@@ -386,7 +413,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     }
 
     // Detailed Activity
-    if (incAttendance || incAnnual || incSick) {
+    if (incAttendance || incAnnual || incSick || incAbsent) {
       if (currentY > doc.internal.pageSize.height - 40 && incSummary) {
         doc.addPage();
         currentY = 20;
@@ -424,7 +451,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
   };
 
   const generateExcel = () => {
-    const { records, globalAtt, globalAnn, globalSick, empCounts } = getFilteredData();
+    const { records, globalAtt, globalAnn, globalSick, globalAbs, empCounts } = getFilteredData();
     const wb = XLSX.utils.book_new();
     const rangeText = (fromDate && toDate) ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`) : "Range: All Time";
 
@@ -433,24 +460,26 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       sumData.push(['Total Active Days', globalAtt.toString()]);
       sumData.push(['Total Annual Leave', globalAnn.toString()]);
       sumData.push(['Total Sick Leave', globalSick.toString()]);
+      sumData.push(['Total Absent Days', globalAbs.toString()]);
       sumData.push([]);
-      sumData.push(['Employee Name', 'Active Days', 'Annual Leaves', 'Sick Leaves']);
+      sumData.push(['Employee Name', 'Active Days', 'Annual Leaves', 'Sick Leaves', 'Absent Days']);
       
       selectedEmps.forEach(empId => {
         const emp = activeEmployees.find(e => e.id === empId);
         if(!emp) return;
-        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0 };
+        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0 };
         sumData.push([
           emp.name, 
           counts.att.toString(),
           counts.ann.toString(),
-          counts.sick.toString()
+          counts.sick.toString(),
+          counts.abs.toString()
         ]);
       });
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Workforce Summary");
     }
 
-    if (incAttendance || incAnnual || incSick) {
+    if (incAttendance || incAnnual || incSick || incAbsent) {
       const detailsData = [['Branded Activity Logs'], [`Time Period: ${rangeText}`], [], ['Employee Name', 'Date', 'Type', 'Details']];
       records.forEach(r => detailsData.push([r.Emp, r.Date, r.Type, r.Details]));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailsData), "Detailed Logs");
@@ -498,14 +527,14 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
           </button>
           <button 
             onClick={downloadHTML}
-            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incSummary)}
+            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incAbsent && !incSummary)}
             className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <FileCode size={18} strokeWidth={2.5}/> Download HTML
           </button>
           <button 
             onClick={generatePDF}
-            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incSummary)}
+            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incAbsent && !incSummary)}
             className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white px-10 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md shadow-teal-100"
           >
             <Download size={18} strokeWidth={2.5}/> Download PDF
@@ -561,6 +590,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
                 { state: incAttendance, set: setIncAttendance, label: "PRESENCE LOGS" },
                 { state: incAnnual, set: setIncAnnual, label: "ANNUAL LEAVES" },
                 { state: incSick, set: setIncSick, label: "SICK LEAVES" },
+                { state: incAbsent, set: setIncAbsent, label: "ABSENT DAYS" },
               ].map((item, idx) => (
                 <label key={idx} className="flex items-center gap-5 cursor-pointer group/item">
                   <input type="checkbox" checked={item.state} onChange={e => item.set(e.target.checked)} className="peer sr-only" />
