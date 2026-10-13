@@ -268,6 +268,7 @@ export default function CalendarPage() {
                     <div key={emp!.id} className="flex items-center justify-between p-4 bg-slate-50/50 border border-slate-100 rounded-xl group hover:border-teal-200 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full shrink-0 bg-white border border-slate-200 text-slate-300 font-bold text-sm flex items-center justify-center transition-transform group-hover:scale-105">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           {emp!.photoUrl ? <img src={emp!.photoUrl} alt="" className="w-full h-full object-cover rounded-full" /> : emp!.name.charAt(0)}
                         </div>
                         <div>
@@ -298,6 +299,7 @@ export default function CalendarPage() {
                   {annualLeaves.map(({ emp }) => (
                     <div key={emp!.id} className="flex items-center gap-3 p-3 bg-white border border-amber-100 rounded-xl">
                       <div className="w-8 h-8 rounded-full shrink-0 bg-amber-50 text-amber-600 font-bold text-xs flex items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         {emp!.photoUrl ? <img src={emp!.photoUrl} alt="" className="w-full h-full object-cover rounded-full" /> : emp!.name.charAt(0)}
                       </div>
                       <span className="font-bold text-xs text-slate-700 tracking-tight uppercase">{emp!.name}</span>
@@ -320,6 +322,7 @@ export default function CalendarPage() {
                   {sickLeaves.map(({ emp }) => (
                     <div key={emp!.id} className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl">
                       <div className="w-8 h-8 rounded-full shrink-0 bg-slate-50 text-slate-400 font-bold text-xs flex items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         {emp!.photoUrl ? <img src={emp!.photoUrl} alt="" className="w-full h-full object-cover rounded-full" /> : emp!.name.charAt(0)}
                       </div>
                       <span className="font-bold text-xs text-slate-700 tracking-tight uppercase">{emp!.name}</span>

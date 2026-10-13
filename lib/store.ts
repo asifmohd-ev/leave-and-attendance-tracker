@@ -29,7 +29,7 @@ export type Attendance = {
   deletedAt?: string | null;
 };
 
-export type LeaveType = 'Annual' | 'Sick/Emergency';
+export type LeaveType = 'Annual' | 'Sick/Emergency' | 'Absent';
 
 export type Leave = {
   id: string;

@@ -109,6 +109,7 @@ export default function AttendancePage() {
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
                           <div className={`w-11 h-11 border-2 transition-colors flex items-center justify-center font-bold text-sm flex-shrink-0 rounded-full overflow-hidden ${currentLeave ? 'bg-rose-100 border-white text-rose-600 shadow-sm' : 'bg-slate-100 border-white text-slate-500'}`}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             {emp.photoUrl ? <img src={emp.photoUrl} alt="" className="w-full h-full object-cover"/> : emp.name.charAt(0)}
                           </div>
                           <span className={`font-semibold text-sm tracking-tight ${currentLeave ? 'text-rose-700' : 'text-slate-700'}`}>{emp.name}</span>
@@ -239,6 +240,7 @@ export default function AttendancePage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 border-2 rounded-full overflow-hidden flex items-center justify-center font-bold text-xs shrink-0 ${currentLeave ? 'bg-rose-100 border-white text-rose-600' : 'bg-slate-100 border-white text-slate-500'}`}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         {emp.photoUrl ? <img src={emp.photoUrl} alt="" className="w-full h-full object-cover"/> : emp.name.charAt(0)}
                       </div>
                       <div>

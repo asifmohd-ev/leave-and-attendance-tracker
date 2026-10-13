@@ -3,7 +3,7 @@
 import { useStore, LeaveType, type Leave } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, eachDayOfInterval } from "date-fns";
-import { CalendarOff, Trash2, Zap, CircleDashed, AlertTriangle, Edit2, X } from "lucide-react";
+import { CalendarOff, Trash2, Zap, CircleDashed, AlertTriangle, Edit2, X, UserX } from "lucide-react";
 import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
 import AnnualLeaveChart from "@/components/AnnualLeaveChart";
 import LeaveBalancesGrid from "@/components/LeaveBalancesGrid";
@@ -199,7 +199,7 @@ export default function LeavesPage() {
               <div className="space-y-8">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Leave Type</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       type="button"
                       onClick={() => setLeaveType("Sick/Emergency")}
@@ -215,6 +215,14 @@ export default function LeavesPage() {
                     >
                       <CircleDashed size={24} strokeWidth={2.5} />
                       <span className="text-[10px] font-bold uppercase tracking-wider">Annual</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLeaveType("Absent")}
+                      className={`flex flex-col items-center justify-center gap-3 py-6 border-2 transition-all rounded-xl ${leaveType === 'Absent' ? 'border-teal-600 bg-teal-50 text-teal-700 shadow-sm' : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200'}`}
+                    >
+                      <UserX size={24} strokeWidth={2.5} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Absent</span>
                     </button>
                   </div>
                 </div>
@@ -234,7 +242,7 @@ export default function LeavesPage() {
                   </select>
                 </div>
 
-                {leaveType === 'Sick/Emergency' ? (
+                {leaveType !== 'Annual' ? (
                   <div className="space-y-2">
                     <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Date</label>
                     <input 
@@ -337,7 +345,7 @@ export default function LeavesPage() {
                       
                       <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-8 w-full sm:w-auto">
                         <span className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border shadow-sm ${
-                          group.type === 'Annual' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500'
+                          group.type === 'Annual' ? 'border-amber-200 bg-amber-50 text-amber-700' : group.type === 'Absent' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500'
                         }`}>
                           {group.type}
                         </span>
