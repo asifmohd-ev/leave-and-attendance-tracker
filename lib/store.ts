@@ -26,6 +26,7 @@ export type Attendance = {
   date: string; // YYYY-MM-DD
   checkIn?: string; // e.g. "09:00 AM"
   checkOut?: string; // e.g. "05:00 PM"
+  absent?: boolean;
   deletedAt?: string | null;
 };
 
@@ -90,6 +91,7 @@ interface AppState {
   updateEmployee: (id: string, updates: Partial<Employee>) => Promise<void>;
   removeEmployee: (id: string) => Promise<void>;
   markAttendance: (employeeId: string, date: string, type: 'checkIn' | 'checkOut', time: string) => Promise<void>;
+  markAbsent: (employeeId: string, date: string, absent: boolean) => Promise<void>;
   addLeave: (employeeId: string, startDate: string, endDate: string, type: LeaveType) => Promise<boolean>;
   updateLeave: (id: string, startDate: string, endDate: string) => Promise<boolean>;
   removeLeave: (id: string) => Promise<void>;
@@ -252,6 +254,24 @@ export const useStore = create<AppState>()((set, get) => ({
         employeeId,
         date,
         [type]: time
+      });
+    }
+  },
+
+  markAbsent: async (employeeId, date, absent) => {
+    const state = get();
+    const existing = state.attendance.find((a) => a.employeeId === employeeId && a.date === date);
+
+    if (existing) {
+      await updateDoc(doc(db, 'attendance', existing.id), absent
+        ? { absent: true, checkIn: "", checkOut: "" }
+        : { absent: false });
+    } else if (absent) {
+      const id = crypto.randomUUID();
+      await setDoc(doc(db, 'attendance', id), {
+        employeeId,
+        date,
+        absent: true
       });
     }
   },

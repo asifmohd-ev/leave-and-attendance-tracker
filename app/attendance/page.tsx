@@ -3,7 +3,7 @@
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, parse } from "date-fns";
-import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Palmtree, ShieldAlert } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Palmtree, ShieldAlert, UserX } from "lucide-react";
 
 // Helpers for bidirectional time format conversion
 const to24Hour = (time12h: string) => {
@@ -20,7 +20,7 @@ const to12Hour = (time24h: string) => {
 
 export default function AttendancePage() {
   const [mounted, setMounted] = useState(false);
-  const { employees, attendance, leaves, markAttendance } = useStore();
+  const { employees, attendance, leaves, markAttendance, markAbsent } = useStore();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -45,6 +45,10 @@ export default function AttendancePage() {
 
   const handleUncheck = (employeeId: string, type: 'checkIn' | 'checkOut') => {
     markAttendance(employeeId, dateStr, type, "");
+  };
+
+  const handleToggleAbsent = (employeeId: string, absent: boolean) => {
+    markAbsent(employeeId, dateStr, absent);
   };
 
   const nextDay = () => {
@@ -96,6 +100,7 @@ export default function AttendancePage() {
                 {activeEmployees.map((emp) => {
                   const record = activeAttendanceRecords.find(a => a.employeeId === emp.id && a.date === dateStr);
                   const isPresent = !!record?.checkIn;
+                  const isAbsent = !!record?.absent;
                   const currentLeave = activeLeaves.find(l => {
                     if (l.employeeId !== emp.id) return false;
                     const start = l.startDate || (l as { date?: string }).date;
@@ -122,20 +127,34 @@ export default function AttendancePage() {
                             {currentLeave.type === 'Annual' ? <Palmtree size={12} strokeWidth={3}/> : <ShieldAlert size={12} strokeWidth={3}/>} 
                             ON LEAVE
                           </span>
+                        ) : isAbsent ? (
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 text-[10px] font-bold uppercase tracking-wider rounded-lg">
+                              <UserX size={12} strokeWidth={3} /> Absent
+                            </span>
+                            <button onClick={() => handleToggleAbsent(emp.id, false)} className="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-slate-50 transition-all">Undo</button>
+                          </div>
                         ) : isPresent ? (
                           <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider rounded-lg">
                             <CheckCircle2 size={12} strokeWidth={3} /> Present
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-400 text-[10px] font-bold uppercase tracking-wider rounded-lg">
-                            <Circle size={12} strokeWidth={3} /> Pending
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-400 text-[10px] font-bold uppercase tracking-wider rounded-lg">
+                              <Circle size={12} strokeWidth={3} /> Pending
+                            </span>
+                            <button onClick={() => handleToggleAbsent(emp.id, true)} className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-rose-100 transition-all">Mark Absent</button>
+                          </div>
                         )}
                       </td>
 
                       {currentLeave ? (
                         <td colSpan={2} className="px-8 py-6 text-sm font-medium text-rose-400 italic opacity-60 text-center">
                            Leave protocol active
+                        </td>
+                      ) : isAbsent ? (
+                        <td colSpan={2} className="px-8 py-6 text-sm font-medium text-rose-400 italic opacity-60 text-center">
+                           Marked absent for this day
                         </td>
                       ) : (
                         <>
@@ -227,6 +246,7 @@ export default function AttendancePage() {
             {activeEmployees.map((emp) => {
               const record = activeAttendanceRecords.find(a => a.employeeId === emp.id && a.date === dateStr);
               const isPresent = !!record?.checkIn;
+              const isAbsent = !!record?.absent;
               const currentLeave = activeLeaves.find(l => {
                 if (l.employeeId !== emp.id) return false;
                 const start = l.startDate || (l as { date?: string }).date;
@@ -252,6 +272,10 @@ export default function AttendancePage() {
                       <span className="px-3 py-1 bg-rose-100 text-rose-700 text-[9px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5">
                         <ShieldAlert size={10} /> LEAVE
                       </span>
+                    ) : isAbsent ? (
+                      <span className="px-3 py-1 bg-rose-100 text-rose-700 text-[9px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5">
+                        <UserX size={10} /> ABSENT
+                      </span>
                     ) : isPresent ? (
                       <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5">
                         <CheckCircle2 size={10} /> PRESENT
@@ -263,7 +287,7 @@ export default function AttendancePage() {
                     )}
                   </div>
 
-                  {!currentLeave && (
+                  {!currentLeave && !isAbsent && (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Check In</p>
@@ -325,6 +349,17 @@ export default function AttendancePage() {
                         )}
                       </div>
                     </div>
+                  )}
+                  {!currentLeave && isAbsent && (
+                    <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-100 px-4 py-3">
+                      <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Marked absent</span>
+                      <button onClick={() => handleToggleAbsent(emp.id, false)} className="px-3 py-1.5 bg-white border border-rose-200 text-rose-600 text-[10px] font-bold uppercase tracking-wider rounded-lg">Undo</button>
+                    </div>
+                  )}
+                  {!currentLeave && !isAbsent && !isPresent && (
+                    <button onClick={() => handleToggleAbsent(emp.id, true)} className="w-full py-2.5 text-[11px] font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-all">
+                      Mark Absent
+                    </button>
                   )}
                 </div>
               )
