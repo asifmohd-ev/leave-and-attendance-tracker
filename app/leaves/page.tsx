@@ -3,6 +3,7 @@
 import { useStore, LeaveType, type Leave } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, eachDayOfInterval } from "date-fns";
+import { isBusinessDay } from "@/lib/dateUtils";
 import { CalendarOff, Trash2, Zap, CircleDashed, AlertTriangle, Edit2, X, UserX } from "lucide-react";
 import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
 import AnnualLeaveChart from "@/components/AnnualLeaveChart";
@@ -57,8 +58,10 @@ export default function LeavesPage() {
 
     let dateArray: string[];
     try {
-      // Generate dates to check for simple attendance collisions 
-      dateArray = eachDayOfInterval({ start: new Date(finalStart), end: new Date(finalEnd) }).map(d => format(d, 'yyyy-MM-dd'));
+      // Generate working days to check for simple attendance collisions
+      dateArray = eachDayOfInterval({ start: new Date(finalStart), end: new Date(finalEnd) })
+        .filter(isBusinessDay)
+        .map(d => format(d, 'yyyy-MM-dd'));
     } catch {
       setErrorMsg("Invalid date range.");
       return;
@@ -105,7 +108,9 @@ export default function LeavesPage() {
       return;
     }
 
-    const dateArray = eachDayOfInterval({ start: new Date(editStart), end: new Date(editEnd) }).map(d => format(d, 'yyyy-MM-dd'));
+    const dateArray = eachDayOfInterval({ start: new Date(editStart), end: new Date(editEnd) })
+      .filter(isBusinessDay)
+      .map(d => format(d, 'yyyy-MM-dd'));
 
     const hasAttendanceCollision = dateArray.some(d =>
       attendance.some(a => a.employeeId === editTarget.employeeId && a.date === d && a.checkIn)
@@ -337,7 +342,7 @@ export default function LeavesPage() {
                           <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 tabular-nums">
                             {group.startDate === group.endDate 
                               ? format(new Date(group.startDate), 'EEEE, MMM dd, yyyy')
-                              : `${format(new Date(group.startDate), 'MMM dd')} - ${format(new Date(group.endDate), 'MMM dd, yyyy')} (${eachDayOfInterval({start: new Date(group.startDate), end: new Date(group.endDate)}).length} days)`
+                              : `${format(new Date(group.startDate), 'MMM dd')} - ${format(new Date(group.endDate), 'MMM dd, yyyy')} (${eachDayOfInterval({start: new Date(group.startDate), end: new Date(group.endDate)}).filter(isBusinessDay).length} working days)`
                             }
                           </p>
                         </div>
