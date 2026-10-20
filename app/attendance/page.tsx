@@ -132,7 +132,7 @@ export default function AttendancePage() {
                             <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 text-[10px] font-bold uppercase tracking-wider rounded-lg">
                               <UserX size={12} strokeWidth={3} /> Absent
                             </span>
-                            <button onClick={() => handleToggleAbsent(emp.id, false)} className="px-3 py-1.5 bg-white border border-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-slate-50 transition-all">Undo</button>
+                            <button onClick={() => handleToggleAbsent(emp.id, false)} className="px-2.5 py-1 bg-white border border-slate-200 text-slate-500 text-[9px] font-bold uppercase tracking-wider rounded-lg hover:bg-slate-50 transition-all">Undo</button>
                           </div>
                         ) : isPresent ? (
                           <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider rounded-lg">
@@ -143,7 +143,7 @@ export default function AttendancePage() {
                             <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-400 text-[10px] font-bold uppercase tracking-wider rounded-lg">
                               <Circle size={12} strokeWidth={3} /> Pending
                             </span>
-                            <button onClick={() => handleToggleAbsent(emp.id, true)} className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-rose-100 transition-all">Mark Absent</button>
+                            <button onClick={() => handleToggleAbsent(emp.id, true)} className="px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-600 text-[9px] font-bold uppercase tracking-wider rounded-lg hover:bg-rose-100 transition-all">Mark Absent</button>
                           </div>
                         )}
                       </td>
@@ -353,11 +353,11 @@ export default function AttendancePage() {
                   {!currentLeave && isAbsent && (
                     <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-100 px-4 py-3">
                       <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Marked absent</span>
-                      <button onClick={() => handleToggleAbsent(emp.id, false)} className="px-3 py-1.5 bg-white border border-rose-200 text-rose-600 text-[10px] font-bold uppercase tracking-wider rounded-lg">Undo</button>
+                      <button onClick={() => handleToggleAbsent(emp.id, false)} className="px-2.5 py-1 bg-white border border-rose-200 text-rose-600 text-[9px] font-bold uppercase tracking-wider rounded-lg">Undo</button>
                     </div>
                   )}
                   {!currentLeave && !isAbsent && !isPresent && (
-                    <button onClick={() => handleToggleAbsent(emp.id, true)} className="w-full py-2.5 text-[11px] font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-all">
+                    <button onClick={() => handleToggleAbsent(emp.id, true)} className="w-full py-2 text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-all">
                       Mark Absent
                     </button>
                   )}
