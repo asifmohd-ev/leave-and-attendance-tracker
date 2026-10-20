@@ -74,6 +74,7 @@ export default function ExportPage() {
       if (!emp) return;
       
       const atts = activeAttendance.filter(a => a.employeeId === empId && a.checkIn && isDateInRange(a.date));
+      const attAbsences = activeAttendance.filter(a => a.employeeId === empId && a.absent && isDateInRange(a.date));
       const rawAnns = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Annual');
       const rawSicks = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency');
       const rawAbs = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Absent');
@@ -110,6 +111,7 @@ export default function ExportPage() {
           if (isDateInRange(dStr) && isBusinessDay(d)) abss.push(dStr);
         });
       });
+      attAbsences.forEach(a => abss.push(a.date));
 
       empCounts[empId] = { att: atts.length, ann: anns.length, sick: sicks.length, abs: abss.length };
 
