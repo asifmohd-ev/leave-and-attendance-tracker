@@ -2,9 +2,9 @@
 
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
-import { format, isWithinInterval, parseISO, eachDayOfInterval } from "date-fns";
-import { isBusinessDay } from "@/lib/dateUtils";
-import { Calendar, Users, Settings2, Download, CheckSquare, Table, Zap, Share2, Check, FileCode } from "lucide-react";
+import { format, isWithinInterval, parseISO, eachDayOfInterval, isSameMonth, parse } from "date-fns";
+import { isBusinessDay, ANNUAL_LEAVE_LIMIT } from "@/lib/dateUtils";
+import { Calendar, Users, Settings2, Download, CheckSquare, Table, Zap, Share2, Check, FileCode, ClipboardList } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -291,165 +291,584 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
   };
 
   const generatePDF = async () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ compress: true });
     const pageWidth = doc.internal.pageSize.width;
-    const { records, globalAtt, globalAnn, globalSick, globalAbs, empCounts } = getFilteredData();
-    
-    // Load Logo with Promise for async handling
-    const loadImg = (url: string): Promise<HTMLImageElement> => {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.src = url;
-        img.crossOrigin = "Anonymous";
-        img.onload = () => resolve(img);
-        img.onerror = (e) => reject(e);
+    const margin = 15;
+    const { globalAtt, globalAnn, globalSick, globalAbs, empCounts } = getFilteredData();
+    const selectedEmployees = selectedEmps
+      .map(empId => activeEmployees.find(e => e.id === empId))
+      .filter((e): e is (typeof activeEmployees)[number] => !!e);
+
+    const hoursBetween = (inT?: string, outT?: string) => {
+      if (!inT || !outT) return "—";
+      try {
+        const a = parse(inT, "hh:mm a", new Date());
+        const b = parse(outT, "hh:mm a", new Date());
+        let mins = b.getHours() * 60 + b.getMinutes() - (a.getHours() * 60 + a.getMinutes());
+        if (mins < 0) mins += 24 * 60;
+        return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+      } catch {
+        return "—";
+      }
+    };
+
+    const leaveCache = new Map<string, string[]>();
+    const presentCache = new Map<string, typeof activeAttendance>();
+    const absentCache = new Map<string, typeof activeAttendance>();
+
+    const getPresent = (empId: string) => {
+      let records = presentCache.get(empId);
+      if (!records) {
+        records = activeAttendance.filter(a => a.employeeId === empId && a.checkIn);
+        presentCache.set(empId, records);
+      }
+      return records;
+    };
+
+    const getAbsent = (empId: string) => {
+      let records = absentCache.get(empId);
+      if (!records) {
+        records = activeAttendance.filter(a => a.employeeId === empId && a.absent);
+        absentCache.set(empId, records);
+      }
+      return records;
+    };
+
+    const getLeaveDays = (empId: string, type: 'Annual' | 'Sick/Emergency' | 'Absent') => {
+      const key = `${empId}|${type}`;
+      const cached = leaveCache.get(key);
+      if (cached) return cached;
+      const dates: string[] = [];
+      activeLeaves.filter(l => l.employeeId === empId && l.type === type).forEach(l => {
+        const start = l.startDate || (l as { date?: string }).date;
+        const end = l.endDate || start;
+        if (!start || !end) return;
+        try {
+          eachDayOfInterval({ start: new Date(start), end: new Date(end) }).forEach(d => {
+            const dStr = format(d, 'yyyy-MM-dd');
+            if (isBusinessDay(d) && isDateInRange(dStr)) dates.push(dStr);
+          });
+        } catch {
+          // ignore invalid ranges
+        }
+      });
+      leaveCache.set(key, dates);
+      return dates;
+    };
+
+    const getMonthly = (empIds: string[]) => {
+      const months: { label: string; present: number; annual: number; sick: number; absent: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const base = new Date();
+        base.setDate(1);
+        base.setMonth(base.getMonth() - i);
+        let present = 0;
+        let annual = 0;
+        let sick = 0;
+        let absent = 0;
+        empIds.forEach(empId => {
+          present += getPresent(empId).filter(a => isSameMonth(new Date(a.date), base) && isDateInRange(a.date)).length;
+          absent += getAbsent(empId).filter(a => isSameMonth(new Date(a.date), base) && isDateInRange(a.date)).length;
+          annual += getLeaveDays(empId, 'Annual').filter(dStr => isSameMonth(parseISO(dStr), base)).length;
+          sick += getLeaveDays(empId, 'Sick/Emergency').filter(dStr => isSameMonth(parseISO(dStr), base)).length;
+          absent += getLeaveDays(empId, 'Absent').filter(dStr => isSameMonth(parseISO(dStr), base)).length;
+        });
+        months.push({ label: format(base, 'MMM'), present, annual, sick, absent });
+      }
+      return months;
+    };
+
+    const buildLogs = (empId: string) => {
+      const logs: string[][] = [];
+      if (incAttendance) {
+        getPresent(empId).filter(a => isDateInRange(a.date)).forEach(a => logs.push([
+          a.date, format(parseISO(a.date), 'EEE'), a.checkIn || '—', a.checkOut || '—', hoursBetween(a.checkIn, a.checkOut), 'Present',
+        ]));
+      }
+      if (incAbsent) {
+        getAbsent(empId).filter(a => isDateInRange(a.date)).forEach(a => logs.push([
+          a.date, format(parseISO(a.date), 'EEE'), '—', '—', '—', 'Absent',
+        ]));
+        getLeaveDays(empId, 'Absent').forEach(dStr => logs.push([dStr, format(parseISO(dStr), 'EEE'), '—', '—', '—', 'Absent']));
+      }
+      if (incAnnual) getLeaveDays(empId, 'Annual').forEach(dStr => logs.push([dStr, format(parseISO(dStr), 'EEE'), '—', '—', '—', 'Annual Leave']));
+      if (incSick) getLeaveDays(empId, 'Sick/Emergency').forEach(dStr => logs.push([dStr, format(parseISO(dStr), 'EEE'), '—', '—', '—', 'Sick Leave']));
+      logs.sort((a, b) => a[0].localeCompare(b[0]));
+      return logs;
+    };
+
+    const drawKpiCards = (kpis: { label: string; value: string; color: number[] }[], topY: number) => {
+      const gap = 6;
+      const cardW = (pageWidth - margin * 2 - gap * (kpis.length - 1)) / kpis.length;
+      const cardH = 22;
+      kpis.forEach((k, i) => {
+        const x = margin + i * (cardW + gap);
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(x, topY, cardW, cardH, "FD");
+        doc.setFillColor(k.color[0], k.color[1], k.color[2]);
+        doc.rect(x, topY, 2, cardH, "F");
+        doc.setTextColor(148, 163, 184);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.text(k.label, x + 6, topY + 8);
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(15);
+        doc.text(k.value, x + 6, topY + 18);
       });
     };
 
+    const drawMonthly = (title: string, monthlyData: { label: string; present: number; annual: number; sick: number; absent: number }[], topY: number) => {
+      doc.setTextColor(15, 23, 42);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(title, margin, topY);
+
+      const legendItems = [
+        { label: "Present", color: [13, 148, 136] },
+        { label: "Leave", color: [245, 158, 11] },
+        { label: "Absent", color: [244, 63, 94] },
+      ];
+      let lx = pageWidth - margin - 60;
+      legendItems.forEach(lg => {
+        doc.setFillColor(lg.color[0], lg.color[1], lg.color[2]);
+        doc.rect(lx, topY - 4, 3, 3, "F");
+        doc.setTextColor(100, 116, 139);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.text(lg.label, lx + 4.5, topY - 1);
+        lx += 20;
+      });
+
+      const cx = margin + 7;
+      const cy = topY + 8;
+      const cw = pageWidth - margin * 2 - 10;
+      const ch = 50;
+      const maxRaw = Math.max(1, ...monthlyData.map(m => m.present + m.annual + m.sick + m.absent));
+      const maxVal = Math.max(5, Math.ceil(maxRaw / 5) * 5);
+
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      for (let i = 0; i <= 4; i++) {
+        const yy = cy + ch - (ch * i) / 4;
+        doc.line(cx, yy, cx + cw, yy);
+        doc.setTextColor(148, 163, 184);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6);
+        doc.text(String(Math.round((maxVal * i) / 4)), cx - 2, yy + 2, { align: "right" });
+      }
+
+      const groupW = cw / monthlyData.length;
+      const barW = Math.min(16, groupW * 0.45);
+      monthlyData.forEach((m, i) => {
+        const x = cx + i * groupW + (groupW - barW) / 2;
+        const total = m.present + m.annual + m.sick + m.absent;
+        let y = cy + ch;
+
+        const pH = (m.present / maxVal) * ch;
+        doc.setFillColor(13, 148, 136);
+        doc.rect(x, y - pH, barW, pH, "F");
+        y -= pH;
+
+        const lH = ((m.annual + m.sick) / maxVal) * ch;
+        doc.setFillColor(245, 158, 11);
+        doc.rect(x, y - lH, barW, lH, "F");
+        y -= lH;
+
+        const aH = (m.absent / maxVal) * ch;
+        doc.setFillColor(244, 63, 94);
+        doc.rect(x, y - aH, barW, aH, "F");
+
+        doc.setTextColor(100, 116, 139);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6);
+        if (total > 0) doc.text(String(total), x + barW / 2, y - aH - 1.5, { align: "center" });
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.text(m.label, x + barW / 2, cy + ch + 5, { align: "center" });
+      });
+    };
+
+    const drawBreakdown = (title: string, annual: number, sick: number, absent: number, topY: number) => {
+      doc.setTextColor(15, 23, 42);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(title, margin, topY);
+
+      const total = annual + sick + absent;
+      const barX = margin;
+      const barY = topY + 8;
+      const barW2 = pageWidth - margin * 2;
+      const barH = 12;
+      doc.setFillColor(241, 245, 249);
+      doc.rect(barX, barY, barW2, barH, "F");
+
+      if (total > 0) {
+        let segX = barX;
+        const segs: { value: number; color: [number, number, number] }[] = [
+          { value: annual, color: [245, 158, 11] },
+          { value: sick, color: [100, 116, 139] },
+          { value: absent, color: [244, 63, 94] },
+        ];
+        segs.forEach(s => {
+          const w = (s.value / total) * barW2;
+          if (w > 0) {
+            doc.setFillColor(s.color[0], s.color[1], s.color[2]);
+            doc.rect(segX, barY, w, barH, "F");
+            if (w > 10) {
+              doc.setTextColor(255, 255, 255);
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(7);
+              doc.text(`${Math.round((s.value / total) * 100)}%`, segX + w / 2, barY + 7.5, { align: "center" });
+            }
+            segX += w;
+          }
+        });
+      } else {
+        doc.setTextColor(148, 163, 184);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("No leave or absence records", barX + barW2 / 2, barY + 8, { align: "center" });
+      }
+
+      const items = [
+        { label: "Annual", value: annual, color: [245, 158, 11] as [number, number, number] },
+        { label: "Sick", value: sick, color: [100, 116, 139] as [number, number, number] },
+        { label: "Absent", value: absent, color: [244, 63, 94] as [number, number, number] },
+      ];
+      let bx = margin;
+      items.forEach(it => {
+        doc.setFillColor(it.color[0], it.color[1], it.color[2]);
+        doc.rect(bx, barY + barH + 6, 3, 3, "F");
+        doc.setTextColor(71, 85, 105);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text(`${it.label}: ${it.value} day${it.value === 1 ? "" : "s"}`, bx + 4.5, barY + barH + 9);
+        bx += 55;
+      });
+    };
+
+    // Load logo (optional)
+    let logo: HTMLImageElement | null = null;
     try {
-      const logo = await loadImg("/images/logo.png");
-      const logoW = 25;
-      const logoH = 25;
-      
-      // Header - Corporate Brand Band
-      doc.setFillColor(13, 148, 136); // Teal-600 (Company)
-      doc.rect(0, 0, pageWidth, 45, "F");
-      
-      // Logo and Brand Name
-      doc.addImage(logo, 'PNG', 15, 10, logoW, logoH);
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(28);
-      doc.setFont("helvetica", "bold");
-      doc.text("ELEVATE VENTURES", 48, 24);
-      
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text("WORKFORCE REPORTING SUITE", 48, 31);
-      
-      const rangeText = (fromDate && toDate) ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`) : "Range: All Time";
-      const generatedText = `Generated: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;
-      doc.text(rangeText, pageWidth - 15, 22, { align: "right" });
-      doc.text(generatedText, pageWidth - 15, 30, { align: "right" });
+      logo = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.src = "/images/logo.png";
+        img.crossOrigin = "Anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+      });
     } catch {
-      // Fallback if logo fails
-      doc.setFillColor(13, 148, 136);
-      doc.rect(0, 0, pageWidth, 40, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.setFont("helvetica", "bold");
-      doc.text("HR ATTENDANCE REPORT", 15, 25);
+      logo = null;
     }
 
-    let currentY = 60;
+    // Page 1 header
+    doc.setFillColor(13, 148, 136);
+    doc.rect(0, 0, pageWidth, 45, "F");
+    if (logo) doc.addImage(logo, "PNG", 15, 12, 20, 20, "brand-logo", "FAST");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("ELEVATE VENTURES", logo ? 40 : margin, 24);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("WORKFORCE REPORTING SUITE", logo ? 40 : margin, 31);
+    const rangeText = (fromDate && toDate) ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`) : "Range: All Time";
+    doc.text(rangeText, pageWidth - margin, 22, { align: "right" });
+    doc.text(`Generated: ${format(new Date(), "yyyy-MM-dd HH:mm")}`, pageWidth - margin, 30, { align: "right" });
 
-    // Executive Metrics
+    // Global overview
+    drawKpiCards([
+      { label: "PRESENT DAYS", value: String(globalAtt), color: [13, 148, 136] },
+      { label: "ABSENT DAYS", value: String(globalAbs), color: [244, 63, 94] },
+      { label: "ANNUAL LEAVE", value: String(globalAnn), color: [245, 158, 11] },
+      { label: "SICK LEAVE", value: String(globalSick), color: [100, 116, 139] },
+    ], 55);
+
+    const globalMonthly = getMonthly(selectedEmps);
+    drawMonthly("MONTHLY PRESENCE - SELECTED PERSONNEL", globalMonthly, 86);
+    drawBreakdown("LEAVE & ABSENCE BREAKDOWN", globalAnn, globalSick, globalAbs, 158);
+
     if (incSummary && selectedEmps.length > 0) {
-      doc.setTextColor(15, 23, 42); // Navy/Slate-900
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("EXECUTIVE PERFORMANCE SUMMARY", 15, currentY);
-
-      currentY += 12;
-      
-      const totalEvents = globalAtt + globalAnn + globalSick + globalAbs;
-      if (totalEvents > 0) {
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        
-        const barWidth = pageWidth - 30;
-        const wAtt = (globalAtt / totalEvents) * barWidth;
-        const wAnn = (globalAnn / totalEvents) * barWidth;
-        const wSick = (globalSick / totalEvents) * barWidth;
-        const wAbs = (globalAbs / totalEvents) * barWidth;
-
-        // Brand Palette: Teal, Amber, Rose, Slate
-        doc.setFillColor(13, 148, 136); // Teal (Company)
-        doc.rect(15, currentY, wAtt, 10, 'F');
-        doc.setFillColor(217, 119, 6); // Amber
-        doc.rect(15 + wAtt, currentY, wAnn, 10, 'F');
-        doc.setFillColor(225, 29, 72); // Rose
-        doc.rect(15 + wAtt + wAnn, currentY, wSick, 10, 'F');
-        doc.setFillColor(100, 116, 139); // Slate
-        doc.rect(15 + wAtt + wAnn + wSick, currentY, wAbs, 10, 'F');
-        
-        // Legend
-        currentY += 18;
-        doc.setFillColor(13, 148, 136);
-        doc.rect(15, currentY - 3, 3, 3, 'F');
-        doc.text(`Active: ${globalAtt}`, 21, currentY);
-
-        doc.setFillColor(217, 119, 6);
-        doc.rect(60, currentY - 3, 3, 3, 'F');
-        doc.text(`Annual: ${globalAnn}`, 66, currentY);
-
-        doc.setFillColor(225, 29, 72);
-        doc.rect(100, currentY - 3, 3, 3, 'F');
-        doc.text(`Sick/Emergency: ${globalSick}`, 106, currentY);
-
-        doc.setFillColor(100, 116, 139);
-        doc.rect(150, currentY - 3, 3, 3, 'F');
-        doc.text(`Absent: ${globalAbs}`, 156, currentY);
-
-        currentY += 12;
-      }
-      
       const summaryBody = selectedEmps.map(empId => {
         const emp = activeEmployees.find(e => e.id === empId);
-        if(!emp) return [];
+        if (!emp) return [];
         const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0 };
         return [emp.name, counts.att.toString(), counts.ann.toString(), counts.sick.toString(), counts.abs.toString()];
       }).filter(x => x.length > 0);
 
       autoTable(doc, {
-        startY: currentY,
-        head: [['EMPLOYEE NAME', 'ACTIVE DAYS', 'ANNUAL LEAVES', 'SICK LEAVES', 'ABSENT DAYS']],
+        startY: 196,
+        head: [["EMPLOYEE NAME", "PRESENT", "ANNUAL", "SICK", "ABSENT"]],
         body: summaryBody,
-        theme: 'striped',
-        headStyles: { fillColor: [248, 250, 252], textColor: [71, 85, 105], fontStyle: 'bold', lineWidth: 0.1, lineColor: [226, 232, 240] },
-        styles: { font: 'helvetica', fontSize: 9, textColor: [15, 23, 42], cellPadding: 4 },
+        theme: "striped",
+        headStyles: { fillColor: [248, 250, 252], textColor: [71, 85, 105], fontStyle: "bold", lineWidth: 0.1, lineColor: [226, 232, 240] },
+        styles: { font: "helvetica", fontSize: 9, textColor: [15, 23, 42], cellPadding: 3 },
         alternateRowStyles: { fillColor: [255, 255, 255] },
+        margin: { left: margin, right: margin },
       });
-      
-      currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 20;
     }
 
-    // Detailed Activity
+    // Per-employee detailed sections
     if (incAttendance || incAnnual || incSick || incAbsent) {
-      if (currentY > doc.internal.pageSize.height - 40 && incSummary) {
+      selectedEmployees.forEach(emp => {
+        const counts = empCounts[emp.id] || { att: 0, ann: 0, sick: 0, abs: 0 };
+        const empMonthly = getMonthly([emp.id]);
+        const logs = buildLogs(emp.id);
+
         doc.addPage();
-        currentY = 20;
-      }
 
-      selectedEmps.forEach((empId) => {
-        const emp = activeEmployees.find(e => e.id === empId);
-        if (!emp) return;
-        const empRecs = records.filter(r => r.Emp === emp.name).map(r => [r.Date, r.Type, r.Details]);
-        if (empRecs.length === 0) return;
-
-        if (currentY > doc.internal.pageSize.height - 50) { doc.addPage(); currentY = 20; }
-
-        doc.setTextColor(15, 23, 42);
-        doc.setFontSize(11);
+        // Employee header
+        doc.setFillColor(13, 148, 136);
+        doc.rect(0, 0, pageWidth, 38, "F");
+        doc.setTextColor(255, 255, 255);
         doc.setFont("helvetica", "bold");
-        doc.text(`ACTIVITY LOG: ${emp.name}`, 15, currentY);
+        doc.setFontSize(18);
+        doc.text(emp.name.toUpperCase(), margin, 16);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("EMPLOYEE PERFORMANCE REPORT", margin, 23);
+        doc.text(`ID: ${emp.id.slice(0, 8).toUpperCase()}`, pageWidth - margin, 14, { align: "right" });
+        doc.text(`Joined: ${format(new Date(emp.joinDate), "MMM dd, yyyy")}`, pageWidth - margin, 20, { align: "right" });
+        doc.text(`Generated: ${format(new Date(), "MMM dd, yyyy HH:mm")}`, pageWidth - margin, 26, { align: "right" });
+
+        drawKpiCards([
+          { label: "PRESENT DAYS", value: String(counts.att), color: [13, 148, 136] },
+          { label: "ABSENT DAYS", value: String(counts.abs), color: [244, 63, 94] },
+          { label: "ANNUAL LEAVE", value: `${counts.ann}/${ANNUAL_LEAVE_LIMIT}`, color: [245, 158, 11] },
+          { label: "SICK LEAVE", value: String(counts.sick), color: [100, 116, 139] },
+        ], 46);
+
+        drawMonthly("MONTHLY PRESENCE - LAST 6 MONTHS", empMonthly, 76);
+        drawBreakdown("LEAVE & ABSENCE BREAKDOWN", counts.ann, counts.sick, counts.abs, 146);
 
         autoTable(doc, {
-          startY: currentY + 6,
-          head: [['DATE', 'TYPE', 'INFORMATION SUMMARY']],
-          body: empRecs,
-          theme: 'grid',
-          headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', lineWidth: 0.1, lineColor: [226, 232, 240] },
-          styles: { font: 'helvetica', fontSize: 8, textColor: [51, 65, 85], cellPadding: 3 },
-          alternateRowStyles: { fillColor: [252, 253, 254] },
-          margin: { bottom: 20 }
+          startY: 184,
+          head: [["MONTH", "PRESENT", "ANNUAL", "SICK", "ABSENT"]],
+          body: empMonthly.map(m => [m.label, String(m.present), String(m.annual), String(m.sick), String(m.absent)]),
+          theme: "grid",
+          headStyles: { fillColor: [13, 148, 136], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+          styles: { font: "helvetica", fontSize: 8, textColor: [51, 65, 85], cellPadding: 2.5 },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          margin: { left: margin, right: margin },
         });
 
-        currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 15;
+        let afterTable = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
+        if (afterTable > 250) {
+          doc.addPage();
+          afterTable = 20;
+        }
+
+        doc.setTextColor(15, 23, 42);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.text("DETAILED ACTIVITY LOG", margin, afterTable);
+
+        autoTable(doc, {
+          startY: afterTable + 4,
+          head: [["DATE", "DAY", "IN", "OUT", "HOURS", "STATUS"]],
+          body: logs.length ? logs : [["—", "—", "—", "—", "—", "No records"]],
+          theme: "grid",
+          headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: "bold", fontSize: 8 },
+          styles: { font: "helvetica", fontSize: 7.5, textColor: [51, 65, 85], cellPadding: 2 },
+          alternateRowStyles: { fillColor: [252, 253, 254] },
+          margin: { left: margin, right: margin, bottom: 25 },
+        });
+
+        const lastY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+        let signY = lastY + 18;
+        if (signY > 265) {
+          doc.addPage();
+          signY = 30;
+        }
+
+        doc.setDrawColor(226, 232, 240);
+        doc.line(margin, signY - 5, pageWidth - margin, signY - 5);
+        doc.setTextColor(71, 85, 105);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("Prepared by: __________________", margin, signY + 3);
+        doc.text("Reviewed by: __________________", margin + 65, signY + 3);
+        doc.text("Employee: __________________", margin + 130, signY + 3);
       });
+    }
+
+    // Footer on every page
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, 285, pageWidth - margin, 285);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Elevate Ventures - Confidential HR Report", margin, 290);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, 290, { align: "right" });
     }
 
     doc.save(`Personnel_Report_${getFileRangeName()}.pdf`);
+  };
+
+  const generateDailyPDF = async () => {
+    const doc = new jsPDF({ compress: true });
+    const pageWidth = doc.internal.pageSize.width;
+    const margin = 15;
+    const now = new Date();
+    const dateStr = format(now, "yyyy-MM-dd");
+
+    const toMins = (t: string) => {
+      const d = parse(t, "hh:mm a", new Date());
+      return isNaN(d.getTime()) ? null : d.getHours() * 60 + d.getMinutes();
+    };
+    const hoursBetween = (inT?: string, outT?: string) => {
+      if (!inT || !outT) return "—";
+      const a = toMins(inT);
+      const b = toMins(outT);
+      if (a === null || b === null) return "—";
+      let mins = b - a;
+      if (mins < 0) mins += 24 * 60;
+      return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+    };
+
+    const employeesForReport = (selectedEmps.length
+      ? selectedEmps.map(empId => activeEmployees.find(e => e.id === empId))
+      : activeEmployees
+    )
+      .filter((e): e is (typeof activeEmployees)[number] => !!e)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const getLeave = (empId: string) => activeLeaves.find(l => {
+      if (l.employeeId !== empId) return false;
+      const start = l.startDate || (l as { date?: string }).date;
+      const end = l.endDate || start;
+      if (!start || !end) return false;
+      return dateStr >= start && dateStr <= end;
+    });
+
+    let present = 0;
+    let absent = 0;
+    let onLeave = 0;
+    let pending = 0;
+    const rows: string[][] = [];
+
+    employeesForReport.forEach(emp => {
+      const record = activeAttendance.find(a => a.employeeId === emp.id && a.date === dateStr);
+      const leave = getLeave(emp.id);
+      let status = "Pending";
+      let checkIn = "—";
+      let checkOut = "—";
+      let hours = "—";
+
+      if (leave) {
+        status = `On Leave (${leave.type})`;
+        onLeave += 1;
+      } else if (record?.absent) {
+        status = "Absent";
+        absent += 1;
+      } else if (record?.checkIn) {
+        status = "Present";
+        checkIn = record.checkIn;
+        checkOut = record.checkOut || "—";
+        hours = hoursBetween(record.checkIn, record.checkOut);
+        present += 1;
+      } else {
+        pending += 1;
+      }
+
+      rows.push([emp.name, checkIn, checkOut, hours, status]);
+    });
+
+    // Header
+    doc.setFillColor(13, 148, 136);
+    doc.rect(0, 0, pageWidth, 40, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("DAILY ATTENDANCE REPORT", margin, 18);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Elevate Ventures - Workforce Report", margin, 26);
+    doc.text(`Date: ${format(now, "EEEE, MMM dd, yyyy")}`, pageWidth - margin, 16, { align: "right" });
+    doc.text(`Generated: ${format(now, "MMM dd, yyyy HH:mm")}`, pageWidth - margin, 24, { align: "right" });
+
+    // Summary cards
+    const kpis = [
+      { label: "PRESENT", value: String(present), color: [13, 148, 136] },
+      { label: "ABSENT", value: String(absent), color: [244, 63, 94] },
+      { label: "ON LEAVE", value: String(onLeave), color: [245, 158, 11] },
+      { label: "PENDING", value: String(pending), color: [100, 116, 139] },
+    ];
+    const gap = 6;
+    const cardW = (pageWidth - margin * 2 - gap * (kpis.length - 1)) / kpis.length;
+    const cardY = 50;
+    const cardH = 22;
+    kpis.forEach((k, i) => {
+      const x = margin + i * (cardW + gap);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(x, cardY, cardW, cardH, "FD");
+      doc.setFillColor(k.color[0], k.color[1], k.color[2]);
+      doc.rect(x, cardY, 2, cardH, "F");
+      doc.setTextColor(148, 163, 184);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.text(k.label, x + 6, cardY + 8);
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(15);
+      doc.text(k.value, x + 6, cardY + 18);
+    });
+
+    // Table
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("TODAY'S ATTENDANCE", margin, 86);
+
+    autoTable(doc, {
+      startY: 90,
+      head: [["EMPLOYEE", "CHECK IN", "CHECK OUT", "HOURS", "STATUS"]],
+      body: rows.length ? rows : [["—", "—", "—", "—", "No employees"]],
+      theme: "grid",
+      headStyles: { fillColor: [13, 148, 136], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
+      styles: { font: "helvetica", fontSize: 9, textColor: [51, 65, 85], cellPadding: 3 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: margin, right: margin, bottom: 25 },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 4) {
+          const value = String(data.cell.raw);
+          if (value === "Present") data.cell.styles.textColor = [13, 148, 136];
+          else if (value === "Absent") data.cell.styles.textColor = [244, 63, 94];
+          else if (value.startsWith("On Leave")) data.cell.styles.textColor = [245, 158, 11];
+          else data.cell.styles.textColor = [148, 163, 184];
+        }
+      },
+    });
+
+    const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(
+      `Total: ${employeesForReport.length} employees  ·  Present ${present}  ·  Absent ${absent}  ·  On Leave ${onLeave}  ·  Pending ${pending}`,
+      margin,
+      finalY + 10
+    );
+
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, 285, pageWidth - margin, 285);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Elevate Ventures - Confidential HR Report", margin, 290);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, 290, { align: "right" });
+    }
+
+    doc.save(`Daily_Report_${dateStr}.pdf`);
   };
 
   const generateExcel = () => {
@@ -526,6 +945,12 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
             className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm"
           >
             <Table size={18} strokeWidth={2.5}/> Excel Export
+          </button>
+          <button 
+            onClick={generateDailyPDF}
+            className="w-full sm:w-auto bg-white border border-slate-200 hover:border-teal-200 text-slate-700 hover:text-teal-600 px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm"
+          >
+            <ClipboardList size={18} strokeWidth={2.5}/> Daily Report
           </button>
           <button 
             onClick={downloadHTML}
