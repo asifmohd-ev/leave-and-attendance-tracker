@@ -3,7 +3,7 @@
 import { useStore } from "@/lib/store";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parse } from "date-fns";
 import { isBusinessDay, ANNUAL_LEAVE_LIMIT } from "@/lib/dateUtils";
 import { ArrowLeft, CalendarOff, UserCheck, ShieldAlert, BadgeInfo, BarChart3, Clock, Download, Table } from "lucide-react";
 import jsPDF from "jspdf";
@@ -46,6 +46,8 @@ export default function EmployeeProfilePage() {
 
   // Monthly stats
   const monthlyAttendance = activeAttendance.filter(a => a.employeeId === id && isSameMonth(new Date(a.date), currentMonth) && a.checkIn);
+  const presentRecords = activeAttendance.filter(a => a.employeeId === id && a.checkIn);
+  const absentRecords = activeAttendance.filter(a => a.employeeId === id && a.absent);
   
   // All Time Stats
   const allTimeLeaves = activeLeaves.filter(l => l.employeeId === id).map(l => ({
@@ -56,6 +58,7 @@ export default function EmployeeProfilePage() {
 
   let totalAnnual = 0;
   let totalSick = 0;
+  let totalAbsentLeave = 0;
   allTimeLeaves.forEach(l => {
     const start = new Date(l.startDate);
     const end = new Date(l.endDate);
@@ -64,13 +67,15 @@ export default function EmployeeProfilePage() {
       days.forEach(d => {
         if (isBusinessDay(d)) {
           if (l.type === 'Annual') totalAnnual += 1;
-          else totalSick += 1;
+          else if (l.type === 'Sick/Emergency') totalSick += 1;
+          else if (l.type === 'Absent') totalAbsentLeave += 1;
         }
       });
     } catch {
       // Fallback
     }
   });
+  const absenceDays = totalAbsentLeave + absentRecords.length;
 
   const generateExcel = () => {
     const records: { Date: string; Type: string; Details: string }[] = [];
@@ -107,59 +112,325 @@ export default function EmployeeProfilePage() {
   };
 
   const generatePDF = async () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ compress: true });
     const pageWidth = doc.internal.pageSize.width;
-    doc.setFillColor(13, 148, 136);
-    doc.rect(0, 0, pageWidth, 40, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.setFont("helvetica", "bold");
-    doc.text(`PROFILE: ${employee.name.toUpperCase()}`, 15, 25);
-    
-    let currentY = 55;
-    doc.setTextColor(15, 23, 42);
-    doc.setFontSize(14);
-    doc.text("PERFORMANCE SUMMARY", 15, currentY);
-    
-    currentY += 10;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    
-    const empAtts = activeAttendance.filter(a => a.employeeId === id && a.checkIn);
-    doc.text(`Active Days: ${empAtts.length}`, 15, currentY); currentY += 6;
-    doc.text(`Annual Leaves Taken: ${totalAnnual} / ${ANNUAL_LEAVE_LIMIT} (Remaining: ${ANNUAL_LEAVE_LIMIT - totalAnnual})`, 15, currentY); currentY += 6;
-    doc.text(`Sick Leaves: ${totalSick}`, 15, currentY); currentY += 15;
+    const margin = 15;
+    const now = new Date();
 
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("ACTIVITY LOGS", 15, currentY);
+    const hoursBetween = (inT?: string, outT?: string) => {
+      if (!inT || !outT) return "—";
+      try {
+        const a = parse(inT, "hh:mm a", new Date());
+        const b = parse(outT, "hh:mm a", new Date());
+        let mins = b.getHours() * 60 + b.getMinutes() - (a.getHours() * 60 + a.getMinutes());
+        if (mins < 0) mins += 24 * 60;
+        return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+      } catch {
+        return "—";
+      }
+    };
 
-    const records: [string, string, string][] = [];
-    empAtts.forEach(a => records.push([a.date, 'Attendance', `IN: ${a.checkIn} ${a.checkOut ? `OUT: ${a.checkOut}` : ''}` ]));
-    
-    allTimeLeaves.forEach(l => {
-      const start = new Date(l.startDate);
-      const end = new Date(l.endDate);
-      eachDayOfInterval({ start, end }).forEach(d => {
-        if (isBusinessDay(d)) {
-          records.push([format(d, 'yyyy-MM-dd'), l.type + ' Leave', 'Full Day']);
+    // Last 6 months of presence / leave / absence
+    const monthly: { label: string; present: number; annual: number; sick: number; absent: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const base = new Date();
+      base.setDate(1);
+      base.setMonth(base.getMonth() - i);
+      let annual = 0;
+      let sick = 0;
+      let absentLeave = 0;
+      allTimeLeaves.forEach(l => {
+        try {
+          eachDayOfInterval({ start: new Date(l.startDate), end: new Date(l.endDate) }).forEach(d => {
+            if (isSameMonth(d, base) && isBusinessDay(d)) {
+              if (l.type === "Annual") annual += 1;
+              else if (l.type === "Sick/Emergency") sick += 1;
+              else if (l.type === "Absent") absentLeave += 1;
+            }
+          });
+        } catch {
+          // ignore invalid ranges
         }
       });
+      const present = presentRecords.filter(a => isSameMonth(new Date(a.date), base)).length;
+      const absentAtt = absentRecords.filter(a => isSameMonth(new Date(a.date), base)).length;
+      monthly.push({ label: format(base, "MMM"), present, annual, sick, absent: absentLeave + absentAtt });
+    }
+
+    // Header band
+    doc.setFillColor(13, 148, 136);
+    doc.rect(0, 0, pageWidth, 38, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text(employee.name.toUpperCase(), margin, 17);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("EMPLOYEE PROFILE REPORT", margin, 24);
+    doc.text(`ID: ${employee.id.slice(0, 8).toUpperCase()}`, pageWidth - margin, 14, { align: "right" });
+    doc.text(`Joined: ${format(new Date(employee.joinDate), "MMM dd, yyyy")}`, pageWidth - margin, 20, { align: "right" });
+    doc.text(`Generated: ${format(now, "MMM dd, yyyy HH:mm")}`, pageWidth - margin, 26, { align: "right" });
+
+    // KPI cards
+    const kpis = [
+      { label: "PRESENT DAYS", value: String(presentRecords.length), color: [13, 148, 136] },
+      { label: "ABSENT DAYS", value: String(absenceDays), color: [244, 63, 94] },
+      { label: "ANNUAL LEAVE", value: `${totalAnnual}/${ANNUAL_LEAVE_LIMIT}`, color: [245, 158, 11] },
+      { label: "SICK LEAVE", value: String(totalSick), color: [100, 116, 139] },
+    ];
+    const gap = 6;
+    const cardW = (pageWidth - margin * 2 - gap * (kpis.length - 1)) / kpis.length;
+    const cardY = 46;
+    const cardH = 22;
+    kpis.forEach((k, i) => {
+      const x = margin + i * (cardW + gap);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(x, cardY, cardW, cardH, "FD");
+      doc.setFillColor(k.color[0], k.color[1], k.color[2]);
+      doc.rect(x, cardY, 2, cardH, "F");
+      doc.setTextColor(148, 163, 184);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.text(k.label, x + 6, cardY + 8);
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(15);
+      doc.text(k.value, x + 6, cardY + 18);
     });
 
-    records.sort((a,b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+    // Chart 1: monthly presence (stacked bars)
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("MONTHLY PRESENCE - LAST 6 MONTHS", margin, 80);
+
+    const legend = [
+      { label: "Present", color: [13, 148, 136] },
+      { label: "Leave", color: [245, 158, 11] },
+      { label: "Absent", color: [244, 63, 94] },
+    ];
+    let lx = pageWidth - margin - 60;
+    legend.forEach(lg => {
+      doc.setFillColor(lg.color[0], lg.color[1], lg.color[2]);
+      doc.rect(lx, 76, 3, 3, "F");
+      doc.setTextColor(100, 116, 139);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.text(lg.label, lx + 4.5, 79);
+      lx += 20;
+    });
+
+    const cx = margin + 7;
+    const cy = 88;
+    const cw = pageWidth - margin * 2 - 10;
+    const ch = 55;
+    const maxRaw = Math.max(1, ...monthly.map(m => m.present + m.annual + m.sick + m.absent));
+    const maxVal = Math.max(5, Math.ceil(maxRaw / 5) * 5);
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.2);
+    for (let i = 0; i <= 4; i++) {
+      const y = cy + ch - (ch * i) / 4;
+      doc.line(cx, y, cx + cw, y);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6);
+      doc.text(String(Math.round((maxVal * i) / 4)), cx - 2, y + 2, { align: "right" });
+    }
+
+    const groupW = cw / monthly.length;
+    const barW = Math.min(16, groupW * 0.45);
+    monthly.forEach((m, i) => {
+      const x = cx + i * groupW + (groupW - barW) / 2;
+      const total = m.present + m.annual + m.sick + m.absent;
+      let y = cy + ch;
+
+      const pH = (m.present / maxVal) * ch;
+      doc.setFillColor(13, 148, 136);
+      doc.rect(x, y - pH, barW, pH, "F");
+      y -= pH;
+
+      const lH = ((m.annual + m.sick) / maxVal) * ch;
+      doc.setFillColor(245, 158, 11);
+      doc.rect(x, y - lH, barW, lH, "F");
+      y -= lH;
+
+      const aH = (m.absent / maxVal) * ch;
+      doc.setFillColor(244, 63, 94);
+      doc.rect(x, y - aH, barW, aH, "F");
+
+      doc.setTextColor(100, 116, 139);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6);
+      if (total > 0) doc.text(String(total), x + barW / 2, y - aH - 1.5, { align: "center" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.text(m.label, x + barW / 2, cy + ch + 5, { align: "center" });
+    });
+
+    // Chart 2: leave & absence breakdown (100% stacked bar)
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("LEAVE & ABSENCE BREAKDOWN", margin, 160);
+
+    const totalBreak = totalAnnual + totalSick + absenceDays;
+    const barX = margin;
+    const barY = 168;
+    const barW2 = pageWidth - margin * 2;
+    const barH = 12;
+    doc.setFillColor(241, 245, 249);
+    doc.rect(barX, barY, barW2, barH, "F");
+
+    if (totalBreak > 0) {
+      let segX = barX;
+      const segs: { value: number; color: [number, number, number] }[] = [
+        { value: totalAnnual, color: [245, 158, 11] },
+        { value: totalSick, color: [100, 116, 139] },
+        { value: absenceDays, color: [244, 63, 94] },
+      ];
+      segs.forEach(s => {
+        const w = (s.value / totalBreak) * barW2;
+        if (w > 0) {
+          doc.setFillColor(s.color[0], s.color[1], s.color[2]);
+          doc.rect(segX, barY, w, barH, "F");
+          if (w > 10) {
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(7);
+            doc.text(`${Math.round((s.value / totalBreak) * 100)}%`, segX + w / 2, barY + 7.5, { align: "center" });
+          }
+          segX += w;
+        }
+      });
+    } else {
+      doc.setTextColor(148, 163, 184);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text("No leave or absence records", barX + barW2 / 2, barY + 8, { align: "center" });
+    }
+
+    const breakdown = [
+      { label: "Annual", value: totalAnnual, color: [245, 158, 11] as [number, number, number] },
+      { label: "Sick", value: totalSick, color: [100, 116, 139] as [number, number, number] },
+      { label: "Absent", value: absenceDays, color: [244, 63, 94] as [number, number, number] },
+    ];
+    let bx = margin;
+    breakdown.forEach(b => {
+      doc.setFillColor(b.color[0], b.color[1], b.color[2]);
+      doc.rect(bx, barY + barH + 8, 3, 3, "F");
+      doc.setTextColor(71, 85, 105);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(`${b.label}: ${b.value} day${b.value === 1 ? "" : "s"}`, bx + 4.5, barY + barH + 11);
+      bx += 55;
+    });
+
+    // Page 2: tables
+    doc.addPage();
+    const y = 20;
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("MONTHLY SUMMARY", margin, y);
 
     autoTable(doc, {
-      startY: currentY + 5,
-      head: [['DATE', 'TYPE', 'DETAILS']],
-      body: records,
-      theme: 'grid',
-      headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', lineWidth: 0.1, lineColor: [226, 232, 240] },
-      styles: { font: 'helvetica', fontSize: 8, textColor: [51, 65, 85], cellPadding: 3 },
-      alternateRowStyles: { fillColor: [252, 253, 254] }
+      startY: y + 4,
+      head: [["MONTH", "PRESENT", "ANNUAL", "SICK", "ABSENT"]],
+      body: monthly.map(m => [m.label, String(m.present), String(m.annual), String(m.sick), String(m.absent)]),
+      theme: "grid",
+      headStyles: { fillColor: [13, 148, 136], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+      styles: { font: "helvetica", fontSize: 8, textColor: [51, 65, 85], cellPadding: 2.5 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: margin, right: margin },
     });
 
-    doc.save(`Profile_${employee.name.replace(/\s+/g, '_')}.pdf`);
+    let afterTable = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
+    if (afterTable > 250) {
+      doc.addPage();
+      afterTable = 20;
+    }
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("DETAILED ACTIVITY LOG", margin, afterTable);
+
+    const logs: string[][] = [];
+    presentRecords.forEach(a => logs.push([
+      a.date,
+      format(new Date(a.date), "EEE"),
+      a.checkIn || "—",
+      a.checkOut || "—",
+      hoursBetween(a.checkIn, a.checkOut),
+      "Present",
+    ]));
+    absentRecords.forEach(a => logs.push([
+      a.date,
+      format(new Date(a.date), "EEE"),
+      "—", "—", "—",
+      "Absent",
+    ]));
+    allTimeLeaves.forEach(l => {
+      try {
+        eachDayOfInterval({ start: new Date(l.startDate), end: new Date(l.endDate) }).forEach(d => {
+          if (isBusinessDay(d)) {
+            logs.push([
+              format(d, "yyyy-MM-dd"),
+              format(d, "EEE"),
+              "—", "—", "—",
+              l.type === "Sick/Emergency" ? "Sick Leave" : `${l.type} Leave`,
+            ]);
+          }
+        });
+      } catch {
+        // ignore invalid ranges
+      }
+    });
+    logs.sort((a, b) => a[0].localeCompare(b[0]));
+
+    autoTable(doc, {
+      startY: afterTable + 4,
+      head: [["DATE", "DAY", "IN", "OUT", "HOURS", "STATUS"]],
+      body: logs.length ? logs : [["—", "—", "—", "—", "—", "No records"]],
+      theme: "grid",
+      headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: "bold", fontSize: 8 },
+      styles: { font: "helvetica", fontSize: 7.5, textColor: [51, 65, 85], cellPadding: 2 },
+      alternateRowStyles: { fillColor: [252, 253, 254] },
+      margin: { left: margin, right: margin, bottom: 25 },
+    });
+
+    const lastY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+    let signY = lastY + 18;
+    if (signY > 265) {
+      doc.addPage();
+      signY = 30;
+    }
+
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, signY - 5, pageWidth - margin, signY - 5);
+    doc.setTextColor(71, 85, 105);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("Prepared by: __________________", margin, signY + 3);
+    doc.text("Reviewed by: __________________", margin + 65, signY + 3);
+    doc.text("Employee: __________________", margin + 130, signY + 3);
+
+    // Footer on every page
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, 285, pageWidth - margin, 285);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Elevate Ventures - Confidential HR Report", margin, 290);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, 290, { align: "right" });
+    }
+
+    doc.save(`Profile_${employee.name.replace(/\s+/g, "_")}.pdf`);
   };
 
   return (
@@ -227,7 +498,7 @@ export default function EmployeeProfilePage() {
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Total Absences</p>
             <BarChart3 size={20} strokeWidth={2.5} className="text-slate-400" />
           </div>
-          <p className="text-4xl font-bold text-slate-900 mt-8 tabular-nums">{allTimeLeaves.length}</p>
+          <p className="text-4xl font-bold text-slate-900 mt-8 tabular-nums">{absenceDays}</p>
         </div>
 
         <div className="bg-white p-7 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-amber-400 transition-colors">
