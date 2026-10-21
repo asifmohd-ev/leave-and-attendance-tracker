@@ -31,6 +31,7 @@ export default function ExportPage() {
   const [incAnnual, setIncAnnual] = useState(true);
   const [incSick, setIncSick] = useState(true);
   const [incAbsent, setIncAbsent] = useState(true);
+  const [incOOO, setIncOOO] = useState(true);
   const [incSummary, setIncSummary] = useState(true);
 
   useEffect(() => {
@@ -67,7 +68,8 @@ export default function ExportPage() {
     let globalAnn = 0;
     let globalSick = 0;
     let globalAbs = 0;
-    const empCounts: Record<string, { att: number, ann: number, sick: number, abs: number }> = {};
+    let globalOOO = 0;
+    const empCounts: Record<string, { att: number, ann: number, sick: number, abs: number, ooo: number }> = {};
 
     selectedEmps.forEach(empId => {
       const emp = activeEmployees.find(e => e.id === empId);
@@ -75,6 +77,7 @@ export default function ExportPage() {
       
       const atts = activeAttendance.filter(a => a.employeeId === empId && a.checkIn && isDateInRange(a.date));
       const attAbsences = activeAttendance.filter(a => a.employeeId === empId && a.absent && isDateInRange(a.date));
+      const ooos = activeAttendance.filter(a => a.employeeId === empId && a.outOfOffice && isDateInRange(a.date));
       const rawAnns = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Annual');
       const rawSicks = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Sick/Emergency');
       const rawAbs = activeLeaves.filter(l => l.employeeId === empId && l.type === 'Absent');
@@ -113,21 +116,23 @@ export default function ExportPage() {
       });
       attAbsences.forEach(a => abss.push(a.date));
 
-      empCounts[empId] = { att: atts.length, ann: anns.length, sick: sicks.length, abs: abss.length };
+      empCounts[empId] = { att: atts.length, ann: anns.length, sick: sicks.length, abs: abss.length, ooo: ooos.length };
 
       globalAtt += atts.length;
       globalAnn += anns.length;
       globalSick += sicks.length;
       globalAbs += abss.length;
+      globalOOO += ooos.length;
 
       if (incAttendance) atts.forEach(a => records.push({ Emp: emp.name, Date: a.date, Type: 'Attendance', Details: `IN: ${a.checkIn} ${a.checkOut ? `OUT: ${a.checkOut}` : ''}` }));
       if (incAnnual) anns.forEach(dStr => records.push({ Emp: emp.name, Date: dStr, Type: 'Annual Leave', Details: 'Full Day' }));
       if (incSick) sicks.forEach(dStr => records.push({ Emp: emp.name, Date: dStr, Type: 'Sick Leave', Details: 'Full Day' }));
       if (incAbsent) abss.forEach(dStr => records.push({ Emp: emp.name, Date: dStr, Type: 'Absent', Details: 'Full Day' }));
+      if (incOOO) ooos.forEach(a => records.push({ Emp: emp.name, Date: a.date, Type: 'Out of Office', Details: 'Full Day' }));
     });
     
     records.sort((a,b) => new Date(a.Date).getTime() - new Date(b.Date).getTime());
-    return { records, globalAtt, globalAnn, globalSick, globalAbs, empCounts };
+    return { records, globalAtt, globalAnn, globalSick, globalAbs, globalOOO, empCounts };
   };
 
   const getFileRangeName = () => {
@@ -154,19 +159,19 @@ export default function ExportPage() {
   };
 
   const generateReportHTML = async () => {
-    const { records, globalAtt, globalAnn, globalSick, globalAbs, empCounts } = getFilteredData();
+    const { records, globalAtt, globalAnn, globalSick, globalAbs, globalOOO, empCounts } = getFilteredData();
     const rangeLabel = (fromDate && toDate)
       ? (fromDate === toDate ? `Date: ${fromDate}` : `${fromDate} — ${toDate}`)
       : "All Records";
     const generatedAt = format(new Date(), 'MMM dd, yyyy HH:mm');
-    const totalEvents = globalAtt + globalAnn + globalSick + globalAbs;
+    const totalEvents = globalAtt + globalAnn + globalSick + globalAbs + globalOOO;
     const logoDataUri = await loadLogoDataUri();
 
     const summaryRows = selectedEmps.map(empId => {
       const emp = activeEmployees.find(e => e.id === empId);
       if (!emp) return '';
-      const c = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0 };
-      return `<tr><td>${emp.name}</td><td>${c.att}</td><td>${c.ann}</td><td>${c.sick}</td><td>${c.abs}</td></tr>`;
+      const c = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0, ooo: 0 };
+      return `<tr><td>${emp.name}</td><td>${c.att}</td><td>${c.ann}</td><td>${c.sick}</td><td>${c.abs}</td><td>${c.ooo}</td></tr>`;
     }).join('');
 
     const activityLogs = selectedEmps.map(empId => {
@@ -175,7 +180,7 @@ export default function ExportPage() {
       const empRecs = records.filter(r => r.Emp === emp.name);
       if (empRecs.length === 0) return '';
       const rows = empRecs.map(r => {
-        const badge = r.Type.includes('Annual') ? 'badge-annual' : r.Type.includes('Sick') ? 'badge-sick' : r.Type.includes('Absent') ? 'badge-abs' : 'badge-att';
+        const badge = r.Type.includes('Annual') ? 'badge-annual' : r.Type.includes('Sick') ? 'badge-sick' : r.Type.includes('Out of Office') ? 'badge-ooo' : r.Type.includes('Absent') ? 'badge-abs' : 'badge-att';
         return `<tr><td>${r.Date}</td><td><span class="badge ${badge}">${r.Type}</span></td><td>${r.Details}</td></tr>`;
       }).join('');
       return `<div class="emp-section"><div class="emp-header"><h3>${emp.name}</h3><span class="emp-id">ID: ${emp.id.slice(0,8)}</span></div><table><thead><tr><th>Date</th><th>Type</th><th>Details</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -185,6 +190,7 @@ export default function ExportPage() {
     const barAnn = totalEvents > 0 ? `${(globalAnn/totalEvents*100).toFixed(1)}%` : '0%';
     const barSick = totalEvents > 0 ? `${(globalSick/totalEvents*100).toFixed(1)}%` : '0%';
     const barAbs = totalEvents > 0 ? `${(globalAbs/totalEvents*100).toFixed(1)}%` : '0%';
+    const barOOO = totalEvents > 0 ? `${(globalOOO/totalEvents*100).toFixed(1)}%` : '0%';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -210,10 +216,11 @@ header{background:#0d9488;color:#fff;padding:40px 48px;display:flex;justify-cont
 .bar-ann{background:#f59e0b;height:100%}
 .bar-sick{background:#f43f5e;height:100%}
 .bar-abs{background:#64748b;height:100%}
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:16px}
+.bar-ooo{background:#8b5cf6;height:100%}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:16px}
 .metric{display:flex;align-items:center;gap:10px}
 .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.dot-att{background:#14b8a6}.dot-ann{background:#f59e0b}.dot-sick{background:#f43f5e}.dot-abs{background:#64748b}
+.dot-att{background:#14b8a6}.dot-ann{background:#f59e0b}.dot-sick{background:#f43f5e}.dot-abs{background:#64748b}.dot-ooo{background:#8b5cf6}
 .metric-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#94a3b8}
 .metric-val{font-size:22px;font-weight:800;color:#0f172a}
 .metric-unit{font-size:11px;color:#94a3b8;font-weight:500}
@@ -230,6 +237,7 @@ tbody td{padding:14px 8px;color:#334155;font-weight:500}
 .badge-annual{background:#fefce8;border-color:#fde68a;color:#92400e}
 .badge-sick{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
 .badge-abs{background:#f1f5f9;border-color:#cbd5e1;color:#334155}
+.badge-ooo{background:#f5f3ff;border-color:#ddd6fe;color:#6d28d9}
 .badge-att{background:#f0fdfa;border-color:#99f6e4;color:#134e4a}
 footer{background:#f8fafc;border-top:1px solid #f1f5f9;padding:24px 48px;text-align:center;font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.15em}
 @media print{body{padding:0;background:#fff}.page{box-shadow:none;border-radius:0}}
@@ -246,19 +254,20 @@ ${incSummary && selectedEmps.length > 0 ? `
 <section>
 <div class="section-title">Executive Metrics</div>
 ${totalEvents > 0 ? `
-<div class="bar-wrap"><div class="bar-att" style="width:${barAtt}"></div><div class="bar-ann" style="width:${barAnn}"></div><div class="bar-sick" style="width:${barSick}"></div><div class="bar-abs" style="width:${barAbs}"></div></div>
+<div class="bar-wrap"><div class="bar-att" style="width:${barAtt}"></div><div class="bar-ann" style="width:${barAnn}"></div><div class="bar-sick" style="width:${barSick}"></div><div class="bar-abs" style="width:${barAbs}"></div><div class="bar-ooo" style="width:${barOOO}"></div></div>
 <div class="metrics">
 <div class="metric"><div class="dot dot-att"></div><div><div class="metric-label">Active Presence</div><div class="metric-val">${globalAtt} <span class="metric-unit">days</span></div></div></div>
 <div class="metric"><div class="dot dot-ann"></div><div><div class="metric-label">Annual Leaves</div><div class="metric-val">${globalAnn} <span class="metric-unit">days</span></div></div></div>
 <div class="metric"><div class="dot dot-sick"></div><div><div class="metric-label">Sick/Emergency</div><div class="metric-val">${globalSick} <span class="metric-unit">days</span></div></div></div>
 <div class="metric"><div class="dot dot-abs"></div><div><div class="metric-label">Absent Days</div><div class="metric-val">${globalAbs} <span class="metric-unit">days</span></div></div></div>
+<div class="metric"><div class="dot dot-ooo"></div><div><div class="metric-label">Out of Office</div><div class="metric-val">${globalOOO} <span class="metric-unit">days</span></div></div></div>
 </div>` : ''}
 <table style="margin-top:24px">
-<thead><tr><th>Employee Name</th><th>Active Days</th><th>Annual Leaves</th><th>Sick Leaves</th><th>Absent Days</th></tr></thead>
+<thead><tr><th>Employee Name</th><th>Active Days</th><th>Annual Leaves</th><th>Sick Leaves</th><th>Absent Days</th><th>Out of Office</th></tr></thead>
 <tbody>${summaryRows}</tbody>
 </table>
 </section>` : ''}
-${(incAttendance || incAnnual || incSick || incAbsent) && activityLogs ? `
+${(incAttendance || incAnnual || incSick || incAbsent || incOOO) && activityLogs ? `
 <section>
 <div class="section-title">Branded Activity Logs</div>
 ${activityLogs}
@@ -294,7 +303,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     const doc = new jsPDF({ compress: true });
     const pageWidth = doc.internal.pageSize.width;
     const margin = 15;
-    const { globalAtt, globalAnn, globalSick, globalAbs, empCounts } = getFilteredData();
+    const { globalAtt, globalAnn, globalSick, globalAbs, globalOOO, empCounts } = getFilteredData();
     const selectedEmployees = selectedEmps
       .map(empId => activeEmployees.find(e => e.id === empId))
       .filter((e): e is (typeof activeEmployees)[number] => !!e);
@@ -315,6 +324,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     const leaveCache = new Map<string, string[]>();
     const presentCache = new Map<string, typeof activeAttendance>();
     const absentCache = new Map<string, typeof activeAttendance>();
+    const oooCache = new Map<string, typeof activeAttendance>();
 
     const getPresent = (empId: string) => {
       let records = presentCache.get(empId);
@@ -330,6 +340,15 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       if (!records) {
         records = activeAttendance.filter(a => a.employeeId === empId && a.absent);
         absentCache.set(empId, records);
+      }
+      return records;
+    };
+
+    const getOOO = (empId: string) => {
+      let records = oooCache.get(empId);
+      if (!records) {
+        records = activeAttendance.filter(a => a.employeeId === empId && a.outOfOffice);
+        oooCache.set(empId, records);
       }
       return records;
     };
@@ -357,7 +376,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     };
 
     const getMonthly = (empIds: string[]) => {
-      const months: { label: string; present: number; annual: number; sick: number; absent: number }[] = [];
+      const months: { label: string; present: number; annual: number; sick: number; absent: number; ooo: number }[] = [];
       for (let i = 5; i >= 0; i--) {
         const base = new Date();
         base.setDate(1);
@@ -366,14 +385,16 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         let annual = 0;
         let sick = 0;
         let absent = 0;
+        let ooo = 0;
         empIds.forEach(empId => {
           present += getPresent(empId).filter(a => isSameMonth(new Date(a.date), base) && isDateInRange(a.date)).length;
           absent += getAbsent(empId).filter(a => isSameMonth(new Date(a.date), base) && isDateInRange(a.date)).length;
+          ooo += getOOO(empId).filter(a => isSameMonth(new Date(a.date), base) && isDateInRange(a.date)).length;
           annual += getLeaveDays(empId, 'Annual').filter(dStr => isSameMonth(parseISO(dStr), base)).length;
           sick += getLeaveDays(empId, 'Sick/Emergency').filter(dStr => isSameMonth(parseISO(dStr), base)).length;
           absent += getLeaveDays(empId, 'Absent').filter(dStr => isSameMonth(parseISO(dStr), base)).length;
         });
-        months.push({ label: format(base, 'MMM'), present, annual, sick, absent });
+        months.push({ label: format(base, 'MMM'), present, annual, sick, absent, ooo });
       }
       return months;
     };
@@ -393,6 +414,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       }
       if (incAnnual) getLeaveDays(empId, 'Annual').forEach(dStr => logs.push([dStr, format(parseISO(dStr), 'EEE'), '—', '—', '—', 'Annual Leave']));
       if (incSick) getLeaveDays(empId, 'Sick/Emergency').forEach(dStr => logs.push([dStr, format(parseISO(dStr), 'EEE'), '—', '—', '—', 'Sick Leave']));
+      if (incOOO) getOOO(empId).filter(a => isDateInRange(a.date)).forEach(a => logs.push([a.date, format(parseISO(a.date), 'EEE'), '—', '—', '—', 'Out of Office']));
       logs.sort((a, b) => a[0].localeCompare(b[0]));
       return logs;
     };
@@ -418,7 +440,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       });
     };
 
-    const drawMonthly = (title: string, monthlyData: { label: string; present: number; annual: number; sick: number; absent: number }[], topY: number) => {
+    const drawMonthly = (title: string, monthlyData: { label: string; present: number; annual: number; sick: number; absent: number; ooo: number }[], topY: number) => {
       doc.setTextColor(15, 23, 42);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
@@ -428,8 +450,9 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         { label: "Present", color: [13, 148, 136] },
         { label: "Leave", color: [245, 158, 11] },
         { label: "Absent", color: [244, 63, 94] },
+        { label: "OOO", color: [139, 92, 246] },
       ];
-      let lx = pageWidth - margin - 60;
+      let lx = pageWidth - margin - 82;
       legendItems.forEach(lg => {
         doc.setFillColor(lg.color[0], lg.color[1], lg.color[2]);
         doc.rect(lx, topY - 4, 3, 3, "F");
@@ -444,7 +467,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       const cy = topY + 8;
       const cw = pageWidth - margin * 2 - 10;
       const ch = 50;
-      const maxRaw = Math.max(1, ...monthlyData.map(m => m.present + m.annual + m.sick + m.absent));
+      const maxRaw = Math.max(1, ...monthlyData.map(m => m.present + m.annual + m.sick + m.absent + m.ooo));
       const maxVal = Math.max(5, Math.ceil(maxRaw / 5) * 5);
 
       doc.setDrawColor(226, 232, 240);
@@ -462,7 +485,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       const barW = Math.min(16, groupW * 0.45);
       monthlyData.forEach((m, i) => {
         const x = cx + i * groupW + (groupW - barW) / 2;
-        const total = m.present + m.annual + m.sick + m.absent;
+        const total = m.present + m.annual + m.sick + m.absent + m.ooo;
         let y = cy + ch;
 
         const pH = (m.present / maxVal) * ch;
@@ -478,11 +501,16 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         const aH = (m.absent / maxVal) * ch;
         doc.setFillColor(244, 63, 94);
         doc.rect(x, y - aH, barW, aH, "F");
+        y -= aH;
+
+        const oH = (m.ooo / maxVal) * ch;
+        doc.setFillColor(139, 92, 246);
+        doc.rect(x, y - oH, barW, oH, "F");
 
         doc.setTextColor(100, 116, 139);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(6);
-        if (total > 0) doc.text(String(total), x + barW / 2, y - aH - 1.5, { align: "center" });
+        if (total > 0) doc.text(String(total), x + barW / 2, y - oH - 1.5, { align: "center" });
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7);
@@ -490,13 +518,13 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       });
     };
 
-    const drawBreakdown = (title: string, annual: number, sick: number, absent: number, topY: number) => {
+    const drawBreakdown = (title: string, annual: number, sick: number, absent: number, ooo: number, topY: number) => {
       doc.setTextColor(15, 23, 42);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.text(title, margin, topY);
 
-      const total = annual + sick + absent;
+      const total = annual + sick + absent + ooo;
       const barX = margin;
       const barY = topY + 8;
       const barW2 = pageWidth - margin * 2;
@@ -510,6 +538,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
           { value: annual, color: [245, 158, 11] },
           { value: sick, color: [100, 116, 139] },
           { value: absent, color: [244, 63, 94] },
+          { value: ooo, color: [139, 92, 246] },
         ];
         segs.forEach(s => {
           const w = (s.value / total) * barW2;
@@ -536,6 +565,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         { label: "Annual", value: annual, color: [245, 158, 11] as [number, number, number] },
         { label: "Sick", value: sick, color: [100, 116, 139] as [number, number, number] },
         { label: "Absent", value: absent, color: [244, 63, 94] as [number, number, number] },
+        { label: "OOO", value: ooo, color: [139, 92, 246] as [number, number, number] },
       ];
       let bx = margin;
       items.forEach(it => {
@@ -545,7 +575,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.text(`${it.label}: ${it.value} day${it.value === 1 ? "" : "s"}`, bx + 4.5, barY + barH + 9);
-        bx += 55;
+        bx += 42;
       });
     };
 
@@ -584,23 +614,24 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       { label: "ABSENT DAYS", value: String(globalAbs), color: [244, 63, 94] },
       { label: "ANNUAL LEAVE", value: String(globalAnn), color: [245, 158, 11] },
       { label: "SICK LEAVE", value: String(globalSick), color: [100, 116, 139] },
+      { label: "OUT OF OFFICE", value: String(globalOOO), color: [139, 92, 246] },
     ], 55);
 
     const globalMonthly = getMonthly(selectedEmps);
     drawMonthly("MONTHLY PRESENCE - SELECTED PERSONNEL", globalMonthly, 86);
-    drawBreakdown("LEAVE & ABSENCE BREAKDOWN", globalAnn, globalSick, globalAbs, 158);
+    drawBreakdown("LEAVE & ABSENCE BREAKDOWN", globalAnn, globalSick, globalAbs, globalOOO, 158);
 
     if (incSummary && selectedEmps.length > 0) {
       const summaryBody = selectedEmps.map(empId => {
         const emp = activeEmployees.find(e => e.id === empId);
         if (!emp) return [];
-        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0 };
-        return [emp.name, counts.att.toString(), counts.ann.toString(), counts.sick.toString(), counts.abs.toString()];
+        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0, ooo: 0 };
+        return [emp.name, counts.att.toString(), counts.ann.toString(), counts.sick.toString(), counts.abs.toString(), counts.ooo.toString()];
       }).filter(x => x.length > 0);
 
       autoTable(doc, {
         startY: 196,
-        head: [["EMPLOYEE NAME", "PRESENT", "ANNUAL", "SICK", "ABSENT"]],
+        head: [["EMPLOYEE NAME", "PRESENT", "ANNUAL", "SICK", "ABSENT", "OUT OF OFFICE"]],
         body: summaryBody,
         theme: "striped",
         headStyles: { fillColor: [248, 250, 252], textColor: [71, 85, 105], fontStyle: "bold", lineWidth: 0.1, lineColor: [226, 232, 240] },
@@ -611,9 +642,9 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     }
 
     // Per-employee detailed sections
-    if (incAttendance || incAnnual || incSick || incAbsent) {
+    if (incAttendance || incAnnual || incSick || incAbsent || incOOO) {
       selectedEmployees.forEach(emp => {
-        const counts = empCounts[emp.id] || { att: 0, ann: 0, sick: 0, abs: 0 };
+        const counts = empCounts[emp.id] || { att: 0, ann: 0, sick: 0, abs: 0, ooo: 0 };
         const empMonthly = getMonthly([emp.id]);
         const logs = buildLogs(emp.id);
 
@@ -638,15 +669,16 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
           { label: "ABSENT DAYS", value: String(counts.abs), color: [244, 63, 94] },
           { label: "ANNUAL LEAVE", value: `${counts.ann}/${ANNUAL_LEAVE_LIMIT}`, color: [245, 158, 11] },
           { label: "SICK LEAVE", value: String(counts.sick), color: [100, 116, 139] },
+          { label: "OUT OF OFFICE", value: String(counts.ooo), color: [139, 92, 246] },
         ], 46);
 
         drawMonthly("MONTHLY PRESENCE - LAST 6 MONTHS", empMonthly, 76);
-        drawBreakdown("LEAVE & ABSENCE BREAKDOWN", counts.ann, counts.sick, counts.abs, 146);
+        drawBreakdown("LEAVE & ABSENCE BREAKDOWN", counts.ann, counts.sick, counts.abs, counts.ooo, 146);
 
         autoTable(doc, {
           startY: 184,
-          head: [["MONTH", "PRESENT", "ANNUAL", "SICK", "ABSENT"]],
-          body: empMonthly.map(m => [m.label, String(m.present), String(m.annual), String(m.sick), String(m.absent)]),
+          head: [["MONTH", "PRESENT", "ANNUAL", "SICK", "ABSENT", "OUT OF OFFICE"]],
+          body: empMonthly.map(m => [m.label, String(m.present), String(m.annual), String(m.sick), String(m.absent), String(m.ooo)]),
           theme: "grid",
           headStyles: { fillColor: [13, 148, 136], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
           styles: { font: "helvetica", fontSize: 8, textColor: [51, 65, 85], cellPadding: 2.5 },
@@ -710,9 +742,11 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     doc.save(`Personnel_Report_${getFileRangeName()}.pdf`);
   };
 
-  const generateDailyHTML = () => {
+  const generateDailyHTML = async () => {
     const now = new Date();
     const dateStr = format(now, "yyyy-MM-dd");
+    const logoDataUri = await loadLogoDataUri();
+    const logoHtml = logoDataUri ? `<img src="${logoDataUri}" alt="Elevate Ventures" />` : "";
 
     const toMins = (t: string) => {
       const d = parse(t, "hh:mm a", new Date());
@@ -746,6 +780,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     let present = 0;
     let absent = 0;
     let onLeave = 0;
+    let outOfOffice = 0;
     let pending = 0;
 
     const rows = employeesForReport.map(emp => {
@@ -762,6 +797,9 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
       } else if (record?.absent) {
         status = "Absent";
         absent += 1;
+      } else if (record?.outOfOffice) {
+        status = "Out of Office";
+        outOfOffice += 1;
       } else if (record?.checkIn) {
         status = "Present";
         checkIn = record.checkIn;
@@ -784,8 +822,9 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     const badgeClass = (status: string) =>
       status === "Present" ? "present"
         : status === "Absent" ? "absent"
-          : status.startsWith("On Leave") ? "leave"
-            : "pending";
+          : status === "Out of Office" ? "ooo"
+            : status.startsWith("On Leave") ? "leave"
+              : "pending";
 
     const bodyRows = rows.length
       ? rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.checkIn)}</td><td>${esc(r.checkOut)}</td><td>${esc(r.hours)}</td><td><span class="badge ${badgeClass(r.status)}">${esc(r.status)}</span></td></tr>`).join("")
@@ -802,11 +841,13 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#0f172a;padding:24px}
 .page{max-width:900px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 40px rgba(0,0,0,.08)}
 header{background:#0d9488;color:#fff;padding:32px 40px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand img{height:44px;width:44px;object-fit:contain;background:#fff;border-radius:10px;padding:5px;flex-shrink:0}
 .brand h1{font-size:24px;font-weight:900;letter-spacing:-.5px}
 .brand p{font-size:10px;font-weight:700;opacity:.7;text-transform:uppercase;letter-spacing:.2em;margin-top:4px}
 .meta{text-align:right;font-size:11px;opacity:.9;line-height:1.6}
 .body{padding:32px 40px}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
 .card{border:1px solid #e2e8f0;border-left:4px solid var(--accent);border-radius:12px;padding:14px;background:#f8fafc}
 .card .label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#94a3b8}
 .card .value{font-size:24px;font-weight:800;margin-top:4px}
@@ -818,6 +859,7 @@ tr:nth-child(even) td{background:#fafcfe}
 .present{background:#ccfbf1;color:#0f766e}
 .absent{background:#ffe4e6;color:#be123c}
 .leave{background:#fef3c7;color:#b45309}
+.ooo{background:#ede9fe;color:#6d28d9}
 .pending{background:#f1f5f9;color:#64748b}
 .totals{margin-top:18px;font-size:11px;color:#64748b}
 footer{padding:16px 40px;background:#f8fafc;border-top:1px solid #f1f5f9;font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.15em;text-align:center}
@@ -828,7 +870,7 @@ footer{padding:16px 40px;background:#f8fafc;border-top:1px solid #f1f5f9;font-si
 <body>
 <div class="page">
 <header>
-<div class="brand"><h1>Daily Attendance Report</h1><p>Elevate Ventures - Workforce</p></div>
+<div class="brand">${logoHtml}<div><h1>Daily Attendance Report</h1><p>Elevate Ventures</p></div></div>
 <div class="meta"><div>${format(now, "EEEE, MMM dd, yyyy")}</div><div>Generated ${format(now, "MMM dd, yyyy HH:mm")}</div></div>
 </header>
 <div class="body">
@@ -836,13 +878,14 @@ footer{padding:16px 40px;background:#f8fafc;border-top:1px solid #f1f5f9;font-si
 <div class="card" style="--accent:#0d9488"><div class="label">Present</div><div class="value">${present}</div></div>
 <div class="card" style="--accent:#f43f5e"><div class="label">Absent</div><div class="value">${absent}</div></div>
 <div class="card" style="--accent:#f59e0b"><div class="label">On Leave</div><div class="value">${onLeave}</div></div>
+<div class="card" style="--accent:#8b5cf6"><div class="label">Out of Office</div><div class="value">${outOfOffice}</div></div>
 <div class="card" style="--accent:#64748b"><div class="label">Pending</div><div class="value">${pending}</div></div>
 </div>
 <table>
 <thead><tr><th>Employee</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Status</th></tr></thead>
 <tbody>${bodyRows}</tbody>
 </table>
-<div class="totals">Total: ${employeesForReport.length} employees &middot; Present ${present} &middot; Absent ${absent} &middot; On Leave ${onLeave} &middot; Pending ${pending}</div>
+<div class="totals">Total: ${employeesForReport.length} employees &middot; Present ${present} &middot; Absent ${absent} &middot; On Leave ${onLeave} &middot; Out of Office ${outOfOffice} &middot; Pending ${pending}</div>
 </div>
 <footer>Elevate Ventures &middot; Confidential HR Report</footer>
 </div>
@@ -861,7 +904,7 @@ footer{padding:16px 40px;background:#f8fafc;border-top:1px solid #f1f5f9;font-si
   };
 
   const generateExcel = () => {
-    const { records, globalAtt, globalAnn, globalSick, globalAbs, empCounts } = getFilteredData();
+    const { records, globalAtt, globalAnn, globalSick, globalAbs, globalOOO, empCounts } = getFilteredData();
     const wb = XLSX.utils.book_new();
     const rangeText = (fromDate && toDate) ? (fromDate === toDate ? `Date: ${fromDate}` : `Range: ${fromDate} to ${toDate}`) : "Range: All Time";
 
@@ -871,25 +914,27 @@ footer{padding:16px 40px;background:#f8fafc;border-top:1px solid #f1f5f9;font-si
       sumData.push(['Total Annual Leave', globalAnn.toString()]);
       sumData.push(['Total Sick Leave', globalSick.toString()]);
       sumData.push(['Total Absent Days', globalAbs.toString()]);
+      sumData.push(['Total Out of Office', globalOOO.toString()]);
       sumData.push([]);
-      sumData.push(['Employee Name', 'Active Days', 'Annual Leaves', 'Sick Leaves', 'Absent Days']);
+      sumData.push(['Employee Name', 'Active Days', 'Annual Leaves', 'Sick Leaves', 'Absent Days', 'Out of Office']);
       
       selectedEmps.forEach(empId => {
         const emp = activeEmployees.find(e => e.id === empId);
         if(!emp) return;
-        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0 };
+        const counts = empCounts[empId] || { att: 0, ann: 0, sick: 0, abs: 0, ooo: 0 };
         sumData.push([
           emp.name, 
           counts.att.toString(),
           counts.ann.toString(),
           counts.sick.toString(),
-          counts.abs.toString()
+          counts.abs.toString(),
+          counts.ooo.toString()
         ]);
       });
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Workforce Summary");
     }
 
-    if (incAttendance || incAnnual || incSick || incAbsent) {
+    if (incAttendance || incAnnual || incSick || incAbsent || incOOO) {
       const detailsData = [['Branded Activity Logs'], [`Time Period: ${rangeText}`], [], ['Employee Name', 'Date', 'Type', 'Details']];
       records.forEach(r => detailsData.push([r.Emp, r.Date, r.Type, r.Details]));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailsData), "Detailed Logs");
@@ -943,14 +988,14 @@ footer{padding:16px 40px;background:#f8fafc;border-top:1px solid #f1f5f9;font-si
           </button>
           <button 
             onClick={downloadHTML}
-            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incAbsent && !incSummary)}
+            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incAbsent && !incOOO && !incSummary)}
             className="w-full sm:w-auto bg-white border border-slate-200 hover:border-slate-300 text-slate-700 px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <FileCode size={18} strokeWidth={2.5}/> Download HTML
           </button>
           <button 
             onClick={generatePDF}
-            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incAbsent && !incSummary)}
+            disabled={selectedEmps.length === 0 || (!incAttendance && !incAnnual && !incSick && !incAbsent && !incOOO && !incSummary)}
             className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white px-10 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md shadow-teal-100"
           >
             <Download size={18} strokeWidth={2.5}/> Download PDF
@@ -1007,6 +1052,7 @@ footer{padding:16px 40px;background:#f8fafc;border-top:1px solid #f1f5f9;font-si
                 { state: incAnnual, set: setIncAnnual, label: "ANNUAL LEAVES" },
                 { state: incSick, set: setIncSick, label: "SICK LEAVES" },
                 { state: incAbsent, set: setIncAbsent, label: "ABSENT DAYS" },
+                { state: incOOO, set: setIncOOO, label: "OUT OF OFFICE" },
               ].map((item, idx) => (
                 <label key={idx} className="flex items-center gap-5 cursor-pointer group/item">
                   <input type="checkbox" checked={item.state} onChange={e => item.set(e.target.checked)} className="peer sr-only" />

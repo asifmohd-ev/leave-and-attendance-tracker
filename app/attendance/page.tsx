@@ -3,7 +3,7 @@
 import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { format, parse } from "date-fns";
-import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Palmtree, ShieldAlert, UserX } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Palmtree, ShieldAlert, UserX, Building2 } from "lucide-react";
 
 // Helpers for bidirectional time format conversion
 const to24Hour = (time12h: string) => {
@@ -20,7 +20,7 @@ const to12Hour = (time24h: string) => {
 
 export default function AttendancePage() {
   const [mounted, setMounted] = useState(false);
-  const { employees, attendance, leaves, markAttendance, markAbsent } = useStore();
+  const { employees, attendance, leaves, markAttendance, markAbsent, markOutOfOffice } = useStore();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -49,6 +49,10 @@ export default function AttendancePage() {
 
   const handleToggleAbsent = (employeeId: string, absent: boolean) => {
     markAbsent(employeeId, dateStr, absent);
+  };
+
+  const handleToggleOOO = (employeeId: string, outOfOffice: boolean) => {
+    markOutOfOffice(employeeId, dateStr, outOfOffice);
   };
 
   const nextDay = () => {
@@ -101,6 +105,7 @@ export default function AttendancePage() {
                   const record = activeAttendanceRecords.find(a => a.employeeId === emp.id && a.date === dateStr);
                   const isPresent = !!record?.checkIn;
                   const isAbsent = !!record?.absent;
+                  const isOutOfOffice = !!record?.outOfOffice;
                   const currentLeave = activeLeaves.find(l => {
                     if (l.employeeId !== emp.id) return false;
                     const start = l.startDate || (l as { date?: string }).date;
@@ -134,6 +139,13 @@ export default function AttendancePage() {
                             </span>
                             <button onClick={() => handleToggleAbsent(emp.id, false)} className="px-2.5 py-1 bg-white border border-slate-200 text-slate-500 text-[9px] font-bold uppercase tracking-wider rounded-lg hover:bg-slate-50 transition-all">Undo</button>
                           </div>
+                        ) : isOutOfOffice ? (
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-violet-100 text-violet-700 text-[10px] font-bold uppercase tracking-wider rounded-lg">
+                              <Building2 size={12} strokeWidth={3} /> Out of Office
+                            </span>
+                            <button onClick={() => handleToggleOOO(emp.id, false)} className="px-2.5 py-1 bg-white border border-slate-200 text-slate-500 text-[9px] font-bold uppercase tracking-wider rounded-lg hover:bg-slate-50 transition-all">Undo</button>
+                          </div>
                         ) : isPresent ? (
                           <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider rounded-lg">
                             <CheckCircle2 size={12} strokeWidth={3} /> Present
@@ -144,6 +156,7 @@ export default function AttendancePage() {
                               <Circle size={12} strokeWidth={3} /> Pending
                             </span>
                             <button onClick={() => handleToggleAbsent(emp.id, true)} className="px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-600 text-[9px] font-bold uppercase tracking-wider rounded-lg hover:bg-rose-100 transition-all">Mark Absent</button>
+                            <button onClick={() => handleToggleOOO(emp.id, true)} className="px-2.5 py-1 bg-violet-50 border border-violet-200 text-violet-600 text-[9px] font-bold uppercase tracking-wider rounded-lg hover:bg-violet-100 transition-all">Out of Office</button>
                           </div>
                         )}
                       </td>
@@ -155,6 +168,10 @@ export default function AttendancePage() {
                       ) : isAbsent ? (
                         <td colSpan={2} className="px-8 py-6 text-sm font-medium text-rose-400 italic opacity-60 text-center">
                            Marked absent for this day
+                        </td>
+                      ) : isOutOfOffice ? (
+                        <td colSpan={2} className="px-8 py-6 text-sm font-medium text-violet-400 italic opacity-60 text-center">
+                           Out of office for this day
                         </td>
                       ) : (
                         <>
@@ -247,6 +264,7 @@ export default function AttendancePage() {
               const record = activeAttendanceRecords.find(a => a.employeeId === emp.id && a.date === dateStr);
               const isPresent = !!record?.checkIn;
               const isAbsent = !!record?.absent;
+              const isOutOfOffice = !!record?.outOfOffice;
               const currentLeave = activeLeaves.find(l => {
                 if (l.employeeId !== emp.id) return false;
                 const start = l.startDate || (l as { date?: string }).date;
@@ -276,6 +294,10 @@ export default function AttendancePage() {
                       <span className="px-3 py-1 bg-rose-100 text-rose-700 text-[9px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5">
                         <UserX size={10} /> ABSENT
                       </span>
+                    ) : isOutOfOffice ? (
+                      <span className="px-3 py-1 bg-violet-100 text-violet-700 text-[9px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5">
+                        <Building2 size={10} /> OOO
+                      </span>
                     ) : isPresent ? (
                       <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5">
                         <CheckCircle2 size={10} /> PRESENT
@@ -287,7 +309,7 @@ export default function AttendancePage() {
                     )}
                   </div>
 
-                  {!currentLeave && !isAbsent && (
+                  {!currentLeave && !isAbsent && !isOutOfOffice && (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Check In</p>
@@ -356,10 +378,21 @@ export default function AttendancePage() {
                       <button onClick={() => handleToggleAbsent(emp.id, false)} className="px-2.5 py-1 bg-white border border-rose-200 text-rose-600 text-[9px] font-bold uppercase tracking-wider rounded-lg">Undo</button>
                     </div>
                   )}
-                  {!currentLeave && !isAbsent && !isPresent && (
-                    <button onClick={() => handleToggleAbsent(emp.id, true)} className="w-full py-2 text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-all">
-                      Mark Absent
-                    </button>
+                  {!currentLeave && isOutOfOffice && (
+                    <div className="flex items-center justify-between rounded-xl bg-violet-50 border border-violet-100 px-4 py-3">
+                      <span className="text-[11px] font-bold text-violet-600 uppercase tracking-wider">Out of office</span>
+                      <button onClick={() => handleToggleOOO(emp.id, false)} className="px-2.5 py-1 bg-white border border-violet-200 text-violet-600 text-[9px] font-bold uppercase tracking-wider rounded-lg">Undo</button>
+                    </div>
+                  )}
+                  {!currentLeave && !isAbsent && !isOutOfOffice && !isPresent && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => handleToggleAbsent(emp.id, true)} className="py-2 text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100 transition-all">
+                        Mark Absent
+                      </button>
+                      <button onClick={() => handleToggleOOO(emp.id, true)} className="py-2 text-[10px] font-bold text-violet-600 bg-violet-50 border border-violet-100 rounded-xl hover:bg-violet-100 transition-all">
+                        Out of Office
+                      </button>
+                    </div>
                   )}
                 </div>
               )

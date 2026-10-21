@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parse } from "date-fns";
 import { isBusinessDay, ANNUAL_LEAVE_LIMIT } from "@/lib/dateUtils";
-import { ArrowLeft, CalendarOff, UserCheck, ShieldAlert, BadgeInfo, BarChart3, Clock, Download, Table } from "lucide-react";
+import { ArrowLeft, CalendarOff, UserCheck, ShieldAlert, BadgeInfo, BarChart3, Clock, Download, Table, Building2 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -48,6 +48,7 @@ export default function EmployeeProfilePage() {
   const monthlyAttendance = activeAttendance.filter(a => a.employeeId === id && isSameMonth(new Date(a.date), currentMonth) && a.checkIn);
   const presentRecords = activeAttendance.filter(a => a.employeeId === id && a.checkIn);
   const absentRecords = activeAttendance.filter(a => a.employeeId === id && a.absent);
+  const oooRecords = activeAttendance.filter(a => a.employeeId === id && a.outOfOffice);
   
   // All Time Stats
   const allTimeLeaves = activeLeaves.filter(l => l.employeeId === id).map(l => ({
@@ -92,6 +93,8 @@ export default function EmployeeProfilePage() {
       });
     });
 
+    oooRecords.forEach(a => records.push({ Date: a.date, Type: 'Out of Office', Details: 'Full Day' }));
+
     records.sort((a,b) => new Date(a.Date).getTime() - new Date(b.Date).getTime());
 
     const wb = XLSX.utils.book_new();
@@ -101,6 +104,7 @@ export default function EmployeeProfilePage() {
       ['Total Annual Leave', totalAnnual.toString()],
       ['Remaining Annual Leave', (ANNUAL_LEAVE_LIMIT - totalAnnual).toString()],
       ['Total Sick Leave', totalSick.toString()],
+      ['Total Out of Office', oooRecords.length.toString()],
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumData), "Profile Summary");
 
@@ -131,7 +135,7 @@ export default function EmployeeProfilePage() {
     };
 
     // Last 6 months of presence / leave / absence
-    const monthly: { label: string; present: number; annual: number; sick: number; absent: number }[] = [];
+    const monthly: { label: string; present: number; annual: number; sick: number; absent: number; ooo: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const base = new Date();
       base.setDate(1);
@@ -154,7 +158,8 @@ export default function EmployeeProfilePage() {
       });
       const present = presentRecords.filter(a => isSameMonth(new Date(a.date), base)).length;
       const absentAtt = absentRecords.filter(a => isSameMonth(new Date(a.date), base)).length;
-      monthly.push({ label: format(base, "MMM"), present, annual, sick, absent: absentLeave + absentAtt });
+      const ooo = oooRecords.filter(a => isSameMonth(new Date(a.date), base)).length;
+      monthly.push({ label: format(base, "MMM"), present, annual, sick, absent: absentLeave + absentAtt, ooo });
     }
 
     // Header band
@@ -177,6 +182,7 @@ export default function EmployeeProfilePage() {
       { label: "ABSENT DAYS", value: String(absenceDays), color: [244, 63, 94] },
       { label: "ANNUAL LEAVE", value: `${totalAnnual}/${ANNUAL_LEAVE_LIMIT}`, color: [245, 158, 11] },
       { label: "SICK LEAVE", value: String(totalSick), color: [100, 116, 139] },
+      { label: "OUT OF OFFICE", value: String(oooRecords.length), color: [139, 92, 246] },
     ];
     const gap = 6;
     const cardW = (pageWidth - margin * 2 - gap * (kpis.length - 1)) / kpis.length;
@@ -208,8 +214,9 @@ export default function EmployeeProfilePage() {
       { label: "Present", color: [13, 148, 136] },
       { label: "Leave", color: [245, 158, 11] },
       { label: "Absent", color: [244, 63, 94] },
+      { label: "OOO", color: [139, 92, 246] },
     ];
-    let lx = pageWidth - margin - 60;
+    let lx = pageWidth - margin - 82;
     legend.forEach(lg => {
       doc.setFillColor(lg.color[0], lg.color[1], lg.color[2]);
       doc.rect(lx, 76, 3, 3, "F");
@@ -224,7 +231,7 @@ export default function EmployeeProfilePage() {
     const cy = 88;
     const cw = pageWidth - margin * 2 - 10;
     const ch = 55;
-    const maxRaw = Math.max(1, ...monthly.map(m => m.present + m.annual + m.sick + m.absent));
+    const maxRaw = Math.max(1, ...monthly.map(m => m.present + m.annual + m.sick + m.absent + m.ooo));
     const maxVal = Math.max(5, Math.ceil(maxRaw / 5) * 5);
 
     doc.setDrawColor(226, 232, 240);
@@ -242,7 +249,7 @@ export default function EmployeeProfilePage() {
     const barW = Math.min(16, groupW * 0.45);
     monthly.forEach((m, i) => {
       const x = cx + i * groupW + (groupW - barW) / 2;
-      const total = m.present + m.annual + m.sick + m.absent;
+      const total = m.present + m.annual + m.sick + m.absent + m.ooo;
       let y = cy + ch;
 
       const pH = (m.present / maxVal) * ch;
@@ -258,11 +265,16 @@ export default function EmployeeProfilePage() {
       const aH = (m.absent / maxVal) * ch;
       doc.setFillColor(244, 63, 94);
       doc.rect(x, y - aH, barW, aH, "F");
+      y -= aH;
+
+      const oH = (m.ooo / maxVal) * ch;
+      doc.setFillColor(139, 92, 246);
+      doc.rect(x, y - oH, barW, oH, "F");
 
       doc.setTextColor(100, 116, 139);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(6);
-      if (total > 0) doc.text(String(total), x + barW / 2, y - aH - 1.5, { align: "center" });
+      if (total > 0) doc.text(String(total), x + barW / 2, y - oH - 1.5, { align: "center" });
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
@@ -275,7 +287,7 @@ export default function EmployeeProfilePage() {
     doc.setFontSize(11);
     doc.text("LEAVE & ABSENCE BREAKDOWN", margin, 160);
 
-    const totalBreak = totalAnnual + totalSick + absenceDays;
+    const totalBreak = totalAnnual + totalSick + absenceDays + oooRecords.length;
     const barX = margin;
     const barY = 168;
     const barW2 = pageWidth - margin * 2;
@@ -289,6 +301,7 @@ export default function EmployeeProfilePage() {
         { value: totalAnnual, color: [245, 158, 11] },
         { value: totalSick, color: [100, 116, 139] },
         { value: absenceDays, color: [244, 63, 94] },
+        { value: oooRecords.length, color: [139, 92, 246] },
       ];
       segs.forEach(s => {
         const w = (s.value / totalBreak) * barW2;
@@ -315,6 +328,7 @@ export default function EmployeeProfilePage() {
       { label: "Annual", value: totalAnnual, color: [245, 158, 11] as [number, number, number] },
       { label: "Sick", value: totalSick, color: [100, 116, 139] as [number, number, number] },
       { label: "Absent", value: absenceDays, color: [244, 63, 94] as [number, number, number] },
+      { label: "OOO", value: oooRecords.length, color: [139, 92, 246] as [number, number, number] },
     ];
     let bx = margin;
     breakdown.forEach(b => {
@@ -324,7 +338,7 @@ export default function EmployeeProfilePage() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.text(`${b.label}: ${b.value} day${b.value === 1 ? "" : "s"}`, bx + 4.5, barY + barH + 11);
-      bx += 55;
+      bx += 42;
     });
 
     // Page 2: tables
@@ -337,8 +351,8 @@ export default function EmployeeProfilePage() {
 
     autoTable(doc, {
       startY: y + 4,
-      head: [["MONTH", "PRESENT", "ANNUAL", "SICK", "ABSENT"]],
-      body: monthly.map(m => [m.label, String(m.present), String(m.annual), String(m.sick), String(m.absent)]),
+      head: [["MONTH", "PRESENT", "ANNUAL", "SICK", "ABSENT", "OUT OF OFFICE"]],
+      body: monthly.map(m => [m.label, String(m.present), String(m.annual), String(m.sick), String(m.absent), String(m.ooo)]),
       theme: "grid",
       headStyles: { fillColor: [13, 148, 136], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
       styles: { font: "helvetica", fontSize: 8, textColor: [51, 65, 85], cellPadding: 2.5 },
@@ -371,6 +385,12 @@ export default function EmployeeProfilePage() {
       format(new Date(a.date), "EEE"),
       "—", "—", "—",
       "Absent",
+    ]));
+    oooRecords.forEach(a => logs.push([
+      a.date,
+      format(new Date(a.date), "EEE"),
+      "—", "—", "—",
+      "Out of Office",
     ]));
     allTimeLeaves.forEach(l => {
       try {
@@ -480,7 +500,7 @@ export default function EmployeeProfilePage() {
       </div>
 
       {/* Monthly Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         
         <div className="bg-white p-7 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-teal-400 transition-colors">
           <div className="flex items-start justify-between">
@@ -521,6 +541,14 @@ export default function EmployeeProfilePage() {
             <ShieldAlert size={20} strokeWidth={2.5} className="text-rose-500" />
           </div>
           <p className="text-4xl font-bold text-slate-900 mt-8 tabular-nums">{totalSick}</p>
+        </div>
+
+        <div className="bg-white p-7 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-violet-400 transition-colors">
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Out of Office</p>
+            <Building2 size={20} strokeWidth={2.5} className="text-violet-500" />
+          </div>
+          <p className="text-4xl font-bold text-slate-900 mt-8 tabular-nums">{oooRecords.length}</p>
         </div>
       </div>
 
@@ -594,6 +622,10 @@ export default function EmployeeProfilePage() {
                         leaveRecord.type === 'Annual' ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-400'
                       }`}>
                         {leaveRecord.type === 'Annual' ? 'Annual' : 'Sick'}
+                      </div>
+                    ) : attRecord?.outOfOffice ? (
+                      <div className="text-[9px] uppercase font-bold tracking-wider px-2 py-1.5 rounded-lg text-center border shadow-sm bg-violet-50 border-violet-100 text-violet-700">
+                        Out of Office
                       </div>
                     ) : attRecord?.checkIn ? (
                       <div className="space-y-1.5">

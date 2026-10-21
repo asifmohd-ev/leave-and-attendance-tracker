@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay, isWithinInterval, parseISO } from "date-fns";
 import { isBusinessDay } from "@/lib/dateUtils";
 import { uaeHolidays } from "@/lib/uaeHolidays";
-import { ChevronLeft, ChevronRight, UserCheck, ShieldAlert, CircleDashed, CalendarPlus, X, Flag } from "lucide-react";
+import { ChevronLeft, ChevronRight, UserCheck, ShieldAlert, CircleDashed, CalendarPlus, X, Flag, Building2 } from "lucide-react";
 
 const expandLeaveToDays = (l: Leave): string[] => {
   const start = l.startDate;
@@ -34,6 +34,7 @@ export default function CalendarPage() {
   const activeLeaves = useMemo(() => leaves.filter(l => !l.deletedAt), [leaves]);
 
   const attendanceDates = useMemo(() => new Set(activeAttendance.filter(a => a.checkIn).map(a => a.date)), [activeAttendance]);
+  const oooDates = useMemo(() => new Set(activeAttendance.filter(a => a.outOfOffice).map(a => a.date)), [activeAttendance]);
   const annualLeaveDates = useMemo(() => new Set(activeLeaves.filter(l => l.type === 'Annual').flatMap(expandLeaveToDays)), [activeLeaves]);
   const sickLeaveDates = useMemo(() => new Set(activeLeaves.filter(l => l.type === 'Sick/Emergency').flatMap(expandLeaveToDays)), [activeLeaves]);
   const holidayDates = useMemo(() => new Set(uaeHolidays.map(h => h.date)), []);
@@ -79,6 +80,10 @@ export default function CalendarPage() {
 
   const annualLeaves = leavesToday.filter(l => l.record.type === 'Annual');
   const sickLeaves = leavesToday.filter(l => l.record.type === 'Sick/Emergency');
+  const oooToday = activeAttendance.filter(a => a.date === dateStr && a.outOfOffice).map(a => ({
+    record: a,
+    emp: activeEmployees.find(e => e.id === a.employeeId)
+  })).filter(x => x.emp);
 
   // UAE holidays for this month
   const holidaysThisMonth = uaeHolidays.filter(h => h.date.startsWith(format(currentMonth, 'yyyy-MM')));
@@ -156,6 +161,7 @@ export default function CalendarPage() {
                 const _isSelected = isSameDay(day, selectedDate);
                 
                 const hasAttendance = attendanceDates.has(dayStr);
+                const hasOOO = oooDates.has(dayStr);
                 const hasAnnualLeave = annualLeaveDates.has(dayStr);
                 const hasSickLeave = sickLeaveDates.has(dayStr);
                 const isHoliday = holidayDates.has(dayStr);
@@ -187,6 +193,7 @@ export default function CalendarPage() {
                       {hasAttendance && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-teal-500" title="Present" />}
                       {hasAnnualLeave && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-amber-400" title="Annual Leave" />}
                       {hasSickLeave && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-rose-400" title="Sick Leave" />}
+                      {hasOOO && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-violet-400" title="Out of Office" />}
                       {isHoliday && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-indigo-400" title="Public Holiday" />}
                       {hasCustomEvent && <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-purple-400" title="Custom Event" />}
                     </div>
@@ -322,6 +329,29 @@ export default function CalendarPage() {
                   {sickLeaves.map(({ emp }) => (
                     <div key={emp!.id} className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl">
                       <div className="w-8 h-8 rounded-full shrink-0 bg-slate-50 text-slate-400 font-bold text-xs flex items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {emp!.photoUrl ? <img src={emp!.photoUrl} alt="" className="w-full h-full object-cover rounded-full" /> : emp!.name.charAt(0)}
+                      </div>
+                      <span className="font-bold text-xs text-slate-700 tracking-tight uppercase">{emp!.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Out of Office */}
+            <section className="space-y-5">
+              <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between border-b border-slate-50 pb-3">
+                <span className="flex items-center gap-2"><Building2 size={16} strokeWidth={2.5} className="text-violet-500" /> Out of Office</span>
+                <span className="bg-slate-50 px-2 py-0.5 rounded-md text-slate-500 text-[10px] tabular-nums font-bold">{oooToday.length}</span>
+              </h3>
+              {oooToday.length === 0 ? (
+                <p className="text-center py-6 text-slate-200 text-xs font-semibold">No out of office records.</p>
+              ) : (
+                <div className="space-y-3">
+                  {oooToday.map(({ emp }) => (
+                    <div key={emp!.id} className="flex items-center gap-3 p-3 bg-white border border-violet-100 rounded-xl">
+                      <div className="w-8 h-8 rounded-full shrink-0 bg-violet-50 text-violet-600 font-bold text-xs flex items-center justify-center">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {emp!.photoUrl ? <img src={emp!.photoUrl} alt="" className="w-full h-full object-cover rounded-full" /> : emp!.name.charAt(0)}
                       </div>
