@@ -710,10 +710,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     doc.save(`Personnel_Report_${getFileRangeName()}.pdf`);
   };
 
-  const generateDailyPDF = async () => {
-    const doc = new jsPDF({ compress: true });
-    const pageWidth = doc.internal.pageSize.width;
-    const margin = 15;
+  const generateDailyHTML = () => {
     const now = new Date();
     const dateStr = format(now, "yyyy-MM-dd");
 
@@ -750,9 +747,8 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
     let absent = 0;
     let onLeave = 0;
     let pending = 0;
-    const rows: string[][] = [];
 
-    employeesForReport.forEach(emp => {
+    const rows = employeesForReport.map(emp => {
       const record = activeAttendance.find(a => a.employeeId === emp.id && a.date === dateStr);
       const leave = getLeave(emp.id);
       let status = "Pending";
@@ -776,99 +772,92 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
         pending += 1;
       }
 
-      rows.push([emp.name, checkIn, checkOut, hours, status]);
+      return { name: emp.name, checkIn, checkOut, hours, status };
     });
 
-    // Header
-    doc.setFillColor(13, 148, 136);
-    doc.rect(0, 0, pageWidth, 40, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("DAILY ATTENDANCE REPORT", margin, 18);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text("Elevate Ventures - Workforce Report", margin, 26);
-    doc.text(`Date: ${format(now, "EEEE, MMM dd, yyyy")}`, pageWidth - margin, 16, { align: "right" });
-    doc.text(`Generated: ${format(now, "MMM dd, yyyy HH:mm")}`, pageWidth - margin, 24, { align: "right" });
+    const esc = (value: string) => value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
 
-    // Summary cards
-    const kpis = [
-      { label: "PRESENT", value: String(present), color: [13, 148, 136] },
-      { label: "ABSENT", value: String(absent), color: [244, 63, 94] },
-      { label: "ON LEAVE", value: String(onLeave), color: [245, 158, 11] },
-      { label: "PENDING", value: String(pending), color: [100, 116, 139] },
-    ];
-    const gap = 6;
-    const cardW = (pageWidth - margin * 2 - gap * (kpis.length - 1)) / kpis.length;
-    const cardY = 50;
-    const cardH = 22;
-    kpis.forEach((k, i) => {
-      const x = margin + i * (cardW + gap);
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.rect(x, cardY, cardW, cardH, "FD");
-      doc.setFillColor(k.color[0], k.color[1], k.color[2]);
-      doc.rect(x, cardY, 2, cardH, "F");
-      doc.setTextColor(148, 163, 184);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7);
-      doc.text(k.label, x + 6, cardY + 8);
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(15);
-      doc.text(k.value, x + 6, cardY + 18);
-    });
+    const badgeClass = (status: string) =>
+      status === "Present" ? "present"
+        : status === "Absent" ? "absent"
+          : status.startsWith("On Leave") ? "leave"
+            : "pending";
 
-    // Table
-    doc.setTextColor(15, 23, 42);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("TODAY'S ATTENDANCE", margin, 86);
+    const bodyRows = rows.length
+      ? rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.checkIn)}</td><td>${esc(r.checkOut)}</td><td>${esc(r.hours)}</td><td><span class="badge ${badgeClass(r.status)}">${esc(r.status)}</span></td></tr>`).join("")
+      : `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:24px">No employees</td></tr>`;
 
-    autoTable(doc, {
-      startY: 90,
-      head: [["EMPLOYEE", "CHECK IN", "CHECK OUT", "HOURS", "STATUS"]],
-      body: rows.length ? rows : [["—", "—", "—", "—", "No employees"]],
-      theme: "grid",
-      headStyles: { fillColor: [13, 148, 136], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
-      styles: { font: "helvetica", fontSize: 9, textColor: [51, 65, 85], cellPadding: 3 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      margin: { left: margin, right: margin, bottom: 25 },
-      didParseCell: (data) => {
-        if (data.section === "body" && data.column.index === 4) {
-          const value = String(data.cell.raw);
-          if (value === "Present") data.cell.styles.textColor = [13, 148, 136];
-          else if (value === "Absent") data.cell.styles.textColor = [244, 63, 94];
-          else if (value.startsWith("On Leave")) data.cell.styles.textColor = [245, 158, 11];
-          else data.cell.styles.textColor = [148, 163, 184];
-        }
-      },
-    });
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Daily Attendance Report - ${format(now, "MMM dd, yyyy")}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#0f172a;padding:24px}
+.page{max-width:900px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 40px rgba(0,0,0,.08)}
+header{background:#0d9488;color:#fff;padding:32px 40px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}
+.brand h1{font-size:24px;font-weight:900;letter-spacing:-.5px}
+.brand p{font-size:10px;font-weight:700;opacity:.7;text-transform:uppercase;letter-spacing:.2em;margin-top:4px}
+.meta{text-align:right;font-size:11px;opacity:.9;line-height:1.6}
+.body{padding:32px 40px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.card{border:1px solid #e2e8f0;border-left:4px solid var(--accent);border-radius:12px;padding:14px;background:#f8fafc}
+.card .label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#94a3b8}
+.card .value{font-size:24px;font-weight:800;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f1f5f9;color:#475569;text-align:left;padding:10px;font-size:9px;text-transform:uppercase;letter-spacing:.1em}
+td{padding:10px;border-bottom:1px solid #f1f5f9}
+tr:nth-child(even) td{background:#fafcfe}
+.badge{display:inline-block;padding:4px 8px;border-radius:6px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+.present{background:#ccfbf1;color:#0f766e}
+.absent{background:#ffe4e6;color:#be123c}
+.leave{background:#fef3c7;color:#b45309}
+.pending{background:#f1f5f9;color:#64748b}
+.totals{margin-top:18px;font-size:11px;color:#64748b}
+footer{padding:16px 40px;background:#f8fafc;border-top:1px solid #f1f5f9;font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.15em;text-align:center}
+@media print{body{background:#fff;padding:0}.page{box-shadow:none;border-radius:0}}
+@media(max-width:640px){.cards{grid-template-columns:repeat(2,1fr)}header,.body,footer{padding-left:20px;padding-right:20px}}
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+<div class="brand"><h1>Daily Attendance Report</h1><p>Elevate Ventures - Workforce</p></div>
+<div class="meta"><div>${format(now, "EEEE, MMM dd, yyyy")}</div><div>Generated ${format(now, "MMM dd, yyyy HH:mm")}</div></div>
+</header>
+<div class="body">
+<div class="cards">
+<div class="card" style="--accent:#0d9488"><div class="label">Present</div><div class="value">${present}</div></div>
+<div class="card" style="--accent:#f43f5e"><div class="label">Absent</div><div class="value">${absent}</div></div>
+<div class="card" style="--accent:#f59e0b"><div class="label">On Leave</div><div class="value">${onLeave}</div></div>
+<div class="card" style="--accent:#64748b"><div class="label">Pending</div><div class="value">${pending}</div></div>
+</div>
+<table>
+<thead><tr><th>Employee</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Status</th></tr></thead>
+<tbody>${bodyRows}</tbody>
+</table>
+<div class="totals">Total: ${employeesForReport.length} employees &middot; Present ${present} &middot; Absent ${absent} &middot; On Leave ${onLeave} &middot; Pending ${pending}</div>
+</div>
+<footer>Elevate Ventures &middot; Confidential HR Report</footer>
+</div>
+</body>
+</html>`;
 
-    const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
-    doc.setTextColor(100, 116, 139);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(
-      `Total: ${employeesForReport.length} employees  ·  Present ${present}  ·  Absent ${absent}  ·  On Leave ${onLeave}  ·  Pending ${pending}`,
-      margin,
-      finalY + 10
-    );
-
-    // Footer
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setDrawColor(226, 232, 240);
-      doc.line(margin, 285, pageWidth - margin, 285);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.setTextColor(148, 163, 184);
-      doc.text("Elevate Ventures - Confidential HR Report", margin, 290);
-      doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, 290, { align: "right" });
-    }
-
-    doc.save(`Daily_Report_${dateStr}.pdf`);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Daily_Report_${dateStr}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const generateExcel = () => {
@@ -947,7 +936,7 @@ ${records.length === 0 ? '<div style="text-align:center;padding:60px;color:#cbd5
             <Table size={18} strokeWidth={2.5}/> Excel Export
           </button>
           <button 
-            onClick={generateDailyPDF}
+            onClick={generateDailyHTML}
             className="w-full sm:w-auto bg-white border border-slate-200 hover:border-teal-200 text-slate-700 hover:text-teal-600 px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-3 transition-all shadow-sm"
           >
             <ClipboardList size={18} strokeWidth={2.5}/> Daily Report
